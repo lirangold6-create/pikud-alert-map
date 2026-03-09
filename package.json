@@ -14,6 +14,9 @@
   },
   "dependencies": {
     "@tensorflow/tfjs-node": "^4.22.0",
-    "axios": "^1.13.6"
+    "axios": "^1.13.6",
+    "co": "^4.6.0",
+    "co-request": "^1.0.0",
+    "https-proxy-agent": "^7.0.6"
   }
 }

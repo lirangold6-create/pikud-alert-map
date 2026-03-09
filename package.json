@@ -13,9 +13,7 @@
     "node": ">=18.x"
   },
   "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.7.2"
-  },
-  "optionalDependencies": {
-    "@tensorflow/tfjs-node": "^4.22.0"
   }
 }

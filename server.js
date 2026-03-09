@@ -4,7 +4,15 @@ const path = require('path');
 const axios = require('axios');
 
 let tf;
-try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
+try { 
+  tf = require('@tensorflow/tfjs-node'); 
+} catch {
+  try {
+    tf = require('@tensorflow/tfjs');
+  } catch {
+    tf = null;
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 

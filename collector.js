@@ -2,21 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const axios = require('axios');
-const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
-const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
 
-const PROXY_LIST = [
-  'http://proxy.toolip.gr:3128',
-  'http://proxy1.toolip.gr:3128',
-  'http://proxy2.toolip.gr:3128',
-  'http://proxy3.toolip.gr:3128',
-  'http://proxy4.toolip.gr:3128'
-];
-
-let currentProxyIndex = 0;
+// Use Cloudflare Worker relay for Oref (bypasses IP blocking)
+const RELAY_BASE = process.env.OREF_RELAY || 'https://oref-relay.lirangold6.workers.dev';
+const OREF_HISTORY_URL = `${RELAY_BASE}/history`;
+const FULL_HISTORY_URL = `${RELAY_BASE}/full-history`;
 
 const RAW_FILE = path.join(__dirname, 'collected-alerts.json');
 const WAVES_FILE = path.join(__dirname, 'collected-waves.json');
@@ -113,48 +105,13 @@ function processWave(alerts) {
 }
 
 // ── Polling ──
-async function fetchWithProxy(url, headers, isBuffer = false) {
-  const proxy = PROXY_LIST[currentProxyIndex];
-  currentProxyIndex = (currentProxyIndex + 1) % PROXY_LIST.length;
-  
-  try {
-    const agent = new HttpsProxyAgent(proxy);
-    const res = await axios.get(url, {
-      headers,
-      httpsAgent: agent,
-      httpAgent: agent,
-      responseType: isBuffer ? 'arraybuffer' : 'json',
-      timeout: 15000
-    });
-    return res;
-  } catch (err) {
-    if (currentProxyIndex === 0) throw err;
-    const nextProxy = PROXY_LIST[currentProxyIndex];
-    const agent = new HttpsProxyAgent(nextProxy);
-    const res = await axios.get(url, {
-      headers,
-      httpsAgent: agent,
-      httpAgent: agent,
-      responseType: isBuffer ? 'arraybuffer' : 'json',
-      timeout: 15000
-    });
-    return res;
-  }
-}
-
 async function pollOref() {
   let totalNew = 0;
-  const headers = {
-    'Referer': 'https://www.oref.org.il/',
-    'X-Requested-With': 'XMLHttpRequest',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-  };
 
   try {
-    const res = await fetchWithProxy(OREF_HISTORY_URL, headers, true);
-    let text = Buffer.from(res.data).toString('utf8').replace(/^\uFEFF/, '');
-    if (text && text.trim() !== '' && text.trim() !== '[]') {
-      const alerts = JSON.parse(text);
+    const res = await axios.get(OREF_HISTORY_URL, { timeout: 15000 });
+    const alerts = res.data;
+    if (Array.isArray(alerts) && alerts.length > 0) {
       for (const a of alerts) {
         const key = alertKey(a);
         if (!rawAlerts[key]) { rawAlerts[key] = a; totalNew++; }
@@ -165,12 +122,7 @@ async function pollOref() {
   }
 
   try {
-    const fullHeaders = {
-      'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
-      'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    };
-    const res = await fetchWithProxy(FULL_HISTORY_URL, fullHeaders, false);
+    const res = await axios.get(FULL_HISTORY_URL, { timeout: 15000 });
     const alerts = res.data;
     if (Array.isArray(alerts)) {
       for (const a of alerts) {

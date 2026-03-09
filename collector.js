@@ -2,30 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const axios = require('axios');
+const pikudAPI = require('./pikud-haoref-api');
 
 const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
-const USE_PROXY = process.env.USE_PROXY === 'true';
-const CORS_PROXY = 'https://corsproxy.io/?';
-
-const OREF_HISTORY_URL = USE_PROXY 
-  ? CORS_PROXY + encodeURIComponent('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json')
-  : 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-  
-const FULL_HISTORY_URL = USE_PROXY
-  ? CORS_PROXY + encodeURIComponent('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1')
-  : 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
-
-const OREF_HEADERS = USE_PROXY ? {} : {
-  'Referer': 'https://www.oref.org.il/',
-  'X-Requested-With': 'XMLHttpRequest',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
-
-const FULL_HISTORY_HEADERS = USE_PROXY ? {} : {
-  'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
-  'X-Requested-With': 'XMLHttpRequest',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
 
 const RAW_FILE = path.join(__dirname, 'collected-alerts.json');
 const WAVES_FILE = path.join(__dirname, 'collected-waves.json');
@@ -118,54 +97,30 @@ function processWave(alerts) {
 
 // ── Polling ──
 async function pollOref() {
-  let totalNew = 0;
-
-  // Poll the short-window AlertsHistory.json
-  try {
-    const res = await axios.get(OREF_HISTORY_URL, {
-      headers: OREF_HEADERS,
-      responseType: 'arraybuffer',
-      timeout: 10000
-    });
-    let text = Buffer.from(res.data).toString('utf8').replace(/^\uFEFF/, '');
-    if (text && text.trim() !== '' && text.trim() !== '[]') {
-      const alerts = JSON.parse(text);
-      for (const a of alerts) {
-        const key = alertKey(a);
-        if (!rawAlerts[key]) { rawAlerts[key] = a; totalNew++; }
+  return new Promise((resolve) => {
+    pikudAPI.getActiveAlerts((err, alerts) => {
+      if (err) {
+        console.error(`  [oref] Error: ${err.message}`);
+        return resolve(0);
       }
-    }
-  } catch (err) {
-    console.error(`  [oref-short] Error: ${err.message}`);
-  }
 
-  // Poll the full GetAlarmsHistory.aspx (has orange/red/green with richer data)
-  try {
-    const res = await axios.get(FULL_HISTORY_URL, {
-      headers: FULL_HISTORY_HEADERS,
-      timeout: 15000
-    });
-    const alerts = res.data;
-    if (Array.isArray(alerts)) {
-      for (const a of alerts) {
-        const converted = {
-          alertDate: a.date.split('.').reverse().join('-') + ' ' + a.time,
-          title: a.category_desc,
-          data: a.data,
-          category: a.category
-        };
-        const key = alertKey(converted);
-        if (!rawAlerts[key]) { rawAlerts[key] = converted; totalNew++; }
+      let totalNew = 0;
+      if (Array.isArray(alerts) && alerts.length > 0) {
+        for (const a of alerts) {
+          const key = alertKey(a);
+          if (!rawAlerts[key]) { 
+            rawAlerts[key] = a; 
+            totalNew++; 
+          }
+        }
       }
-    }
-  } catch (err) {
-    console.error(`  [oref-full] Error: ${err.message}`);
-  }
 
-  if (totalNew > 0) {
-    fs.writeFileSync(RAW_FILE, JSON.stringify(rawAlerts, null, 0));
-  }
-  return totalNew;
+      if (totalNew > 0) {
+        fs.writeFileSync(RAW_FILE, JSON.stringify(rawAlerts, null, 0));
+      }
+      resolve(totalNew);
+    });
+  });
 }
 
 async function pollTzevaadom() {

@@ -174,16 +174,34 @@ async function pollTzevaadom() {
     const events = res.data;
     const seenIds = new Set(tzevaadomEvents.map(e => e.id));
     let newCount = 0;
+    let newAlertsAdded = 0;
 
     for (const event of events) {
       if (!seenIds.has(event.id)) {
         tzevaadomEvents.push(event);
         newCount++;
+        
+        // Convert Tzevaadom event to alert format and add to rawAlerts
+        const alert = {
+          alertDate: event.time,
+          title: event.isDrill ? 'תרגיל' : 'ירי רקטות וטילים',
+          data: event.city,
+          category: 1,
+          category_desc: event.isDrill ? 'תרגיל' : 'ירי רקטות וטילים'
+        };
+        const key = alertKey(alert);
+        if (!rawAlerts[key]) {
+          rawAlerts[key] = alert;
+          newAlertsAdded++;
+        }
       }
     }
 
     if (newCount > 0) {
       fs.writeFileSync(TZEVAADOM_FILE, JSON.stringify(tzevaadomEvents, null, 0));
+      if (newAlertsAdded > 0) {
+        fs.writeFileSync(RAW_FILE, JSON.stringify(rawAlerts, null, 0));
+      }
     }
     return newCount;
   } catch (err) {

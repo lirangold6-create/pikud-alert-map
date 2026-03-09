@@ -1,12 +1,12 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const axios = require(path.join(__dirname, 'pikud-haoref-api/node_modules/axios'));
+const axios = require('axios');
 
 let tf;
 try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const ALERTS_URL = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
 const HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';

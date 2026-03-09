@@ -4,16 +4,12 @@
   "description": "Live alert map with ML-powered red alert probability prediction",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "serve": "node server.js",
-    "collect": "node collector.js",
-    "train": "node train-model.js"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=18.x"
   },
   "dependencies": {
-    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.7.2"
   }
 }

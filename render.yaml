@@ -1,0 +1,33 @@
+services:
+  # Web Service - HTTP Server
+  - type: web
+    name: pikud-alert-map
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: pikud-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
+
+  # Background Worker - Data Collector
+  - type: worker
+    name: pikud-collector
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install
+    startCommand: node collector.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: pikud-collector-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

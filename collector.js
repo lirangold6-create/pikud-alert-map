@@ -2,9 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const axios = require('axios');
-const pikudAPI = require('./pikud-haoref-api');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
+const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
+const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
+
+const PROXY_LIST = [
+  'http://proxy.toolip.gr:3128',
+  'http://proxy1.toolip.gr:3128',
+  'http://proxy2.toolip.gr:3128',
+  'http://proxy3.toolip.gr:3128',
+  'http://proxy4.toolip.gr:3128'
+];
+
+let currentProxyIndex = 0;
 
 const RAW_FILE = path.join(__dirname, 'collected-alerts.json');
 const WAVES_FILE = path.join(__dirname, 'collected-waves.json');
@@ -39,7 +51,12 @@ function alertKey(a) {
 // ── Group raw alerts into waves ──
 function buildWaves(alerts) {
   const parsed = alerts
-    .map(a => ({ ...a, time: new Date(a.alertDate.replace(' ', 'T')).getTime() }))
+    .filter(a => a.alertDate)
+    .map(a => {
+      const dateStr = a.alertDate.includes('T') ? a.alertDate : a.alertDate.replace(' ', 'T');
+      return { ...a, time: new Date(dateStr).getTime() };
+    })
+    .filter(a => !isNaN(a.time))
     .sort((a, b) => a.time - b.time);
 
   if (parsed.length === 0) return [];
@@ -96,31 +113,86 @@ function processWave(alerts) {
 }
 
 // ── Polling ──
-async function pollOref() {
-  return new Promise((resolve) => {
-    pikudAPI.getActiveAlerts((err, alerts) => {
-      if (err) {
-        console.error(`  [oref] Error: ${err.message}`);
-        return resolve(0);
-      }
-
-      let totalNew = 0;
-      if (Array.isArray(alerts) && alerts.length > 0) {
-        for (const a of alerts) {
-          const key = alertKey(a);
-          if (!rawAlerts[key]) { 
-            rawAlerts[key] = a; 
-            totalNew++; 
-          }
-        }
-      }
-
-      if (totalNew > 0) {
-        fs.writeFileSync(RAW_FILE, JSON.stringify(rawAlerts, null, 0));
-      }
-      resolve(totalNew);
+async function fetchWithProxy(url, headers, isBuffer = false) {
+  const proxy = PROXY_LIST[currentProxyIndex];
+  currentProxyIndex = (currentProxyIndex + 1) % PROXY_LIST.length;
+  
+  try {
+    const agent = new HttpsProxyAgent(proxy);
+    const res = await axios.get(url, {
+      headers,
+      httpsAgent: agent,
+      httpAgent: agent,
+      responseType: isBuffer ? 'arraybuffer' : 'json',
+      timeout: 15000
     });
-  });
+    return res;
+  } catch (err) {
+    if (currentProxyIndex === 0) throw err;
+    const nextProxy = PROXY_LIST[currentProxyIndex];
+    const agent = new HttpsProxyAgent(nextProxy);
+    const res = await axios.get(url, {
+      headers,
+      httpsAgent: agent,
+      httpAgent: agent,
+      responseType: isBuffer ? 'arraybuffer' : 'json',
+      timeout: 15000
+    });
+    return res;
+  }
+}
+
+async function pollOref() {
+  let totalNew = 0;
+  const headers = {
+    'Referer': 'https://www.oref.org.il/',
+    'X-Requested-With': 'XMLHttpRequest',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  };
+
+  try {
+    const res = await fetchWithProxy(OREF_HISTORY_URL, headers, true);
+    let text = Buffer.from(res.data).toString('utf8').replace(/^\uFEFF/, '');
+    if (text && text.trim() !== '' && text.trim() !== '[]') {
+      const alerts = JSON.parse(text);
+      for (const a of alerts) {
+        const key = alertKey(a);
+        if (!rawAlerts[key]) { rawAlerts[key] = a; totalNew++; }
+      }
+    }
+  } catch (err) {
+    console.error(`  [oref-short] ${err.message}`);
+  }
+
+  try {
+    const fullHeaders = {
+      'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    };
+    const res = await fetchWithProxy(FULL_HISTORY_URL, fullHeaders, false);
+    const alerts = res.data;
+    if (Array.isArray(alerts)) {
+      for (const a of alerts) {
+        const converted = {
+          alertDate: a.date.split('.').reverse().join('-') + ' ' + a.time,
+          title: a.category_desc,
+          data: a.data,
+          category: a.category,
+          category_desc: a.category_desc
+        };
+        const key = alertKey(converted);
+        if (!rawAlerts[key]) { rawAlerts[key] = converted; totalNew++; }
+      }
+    }
+  } catch (err) {
+    console.error(`  [oref-full] ${err.message}`);
+  }
+
+  if (totalNew > 0) {
+    fs.writeFileSync(RAW_FILE, JSON.stringify(rawAlerts, null, 0));
+  }
+  return totalNew;
 }
 
 async function pollTzevaadom() {

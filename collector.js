@@ -3,17 +3,25 @@ const path = require('path');
 const { execFile } = require('child_process');
 const axios = require('axios');
 
-const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
 const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
+const USE_PROXY = process.env.USE_PROXY === 'true';
+const CORS_PROXY = 'https://corsproxy.io/?';
 
-const OREF_HEADERS = {
+const OREF_HISTORY_URL = USE_PROXY 
+  ? CORS_PROXY + encodeURIComponent('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json')
+  : 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
+  
+const FULL_HISTORY_URL = USE_PROXY
+  ? CORS_PROXY + encodeURIComponent('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1')
+  : 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
+
+const OREF_HEADERS = USE_PROXY ? {} : {
   'Referer': 'https://www.oref.org.il/',
   'X-Requested-With': 'XMLHttpRequest',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 };
 
-const FULL_HISTORY_HEADERS = {
+const FULL_HISTORY_HEADERS = USE_PROXY ? {} : {
   'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
   'X-Requested-With': 'XMLHttpRequest',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

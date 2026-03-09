@@ -7,18 +7,28 @@ let tf;
 try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
 
 const PORT = process.env.PORT || 3000;
+const USE_PROXY = process.env.USE_PROXY === 'true';
+const CORS_PROXY = 'https://corsproxy.io/?';
 
-const ALERTS_URL = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
-const HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he';
+const ALERTS_URL = USE_PROXY
+  ? CORS_PROXY + encodeURIComponent('https://www.oref.org.il/warningMessages/alert/Alerts.json')
+  : 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
+  
+const HISTORY_URL = USE_PROXY
+  ? CORS_PROXY + encodeURIComponent('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json')
+  : 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
+  
+const FULL_HISTORY_URL = USE_PROXY
+  ? CORS_PROXY + encodeURIComponent('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he')
+  : 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he';
 
-const HEADERS = {
+const HEADERS = USE_PROXY ? {} : {
   'Referer': 'https://www.oref.org.il/',
   'X-Requested-With': 'XMLHttpRequest',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 };
 
-const HISTORY_HEADERS = {
+const HISTORY_HEADERS = USE_PROXY ? {} : {
   'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
   'X-Requested-With': 'XMLHttpRequest',
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

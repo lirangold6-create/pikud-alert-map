@@ -11,10 +11,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-    disk:
-      name: pikud-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1
 
   # Background Worker - Data Collector
   - type: worker
@@ -27,7 +23,3 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-    disk:
-      name: pikud-collector-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1

@@ -99,11 +99,21 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your site every 5 minu
 - ✅ Frontend (index.html)
 - ✅ Dependencies (installed via npm)
 - ✅ Static city data (pikud-haoref-api/)
+- ✅ **Pre-trained ML model** (model/) - 86.8% accuracy ⭐
+
+### Pre-Trained Model Benefits:
+- 🚀 **Instant predictions** from first deployment
+- 💰 **No training cost** on free tier
+- ⚡ **Fast startup** (model ready immediately)
+- 📊 **Known performance** (86.8% validation accuracy)
+- 🔄 **Auto-updates** when new data arrives
+
+See `MODEL_INFO.md` for complete model documentation.
 
 ### Generated on Server:
 - 📦 collected-alerts.json (created by collector)
 - 📦 collected-waves.json (created by collector)
-- 📦 model/ directory (created by training)
+- 📦 Updated model files (when auto-retrain triggers)
 - 📦 *.log files
 
 ---
@@ -116,9 +126,9 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your site every 5 minu
 
 ### Expected Logs:
 
-**Server:**
+**Server (with pre-trained model):**
 ```
-[ML] No trained model found (normal on first run)
+[ML] Model loaded (alpha=0.70, waves=63, val_acc=86.8%)
 Live alert map running at http://0.0.0.0:10000
 ```
 
@@ -130,8 +140,27 @@ Alert collector started (oref + tzevaadom)
   Polling every 30s
 ```
 
-### First Training:
-The ML model will train automatically after the first completed alert wave (with ≥5 cities and green "event ended" alerts).
+### ML Model Status:
+✅ **Pre-trained model included** - predictions work immediately!
+
+**Verify model loaded:**
+```bash
+curl https://your-app.onrender.com/api/model-info
+```
+
+**Expected response:**
+```json
+{
+  "loaded": true,
+  "alpha": 0.7,
+  "accuracy": 0.868,
+  "wavesUsed": 63,
+  "trainedAt": "2026-03-09T16:04:44.450Z"
+}
+```
+
+### Auto-Retraining:
+The model will automatically retrain with new data after each completed alert wave. No action needed!
 
 ---
 

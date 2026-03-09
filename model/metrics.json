@@ -1,0 +1,54 @@
+{
+  "trainedAt": "2026-03-09T16:04:44.450Z",
+  "wavesUsed": 63,
+  "totalSamples": 4193,
+  "positiveRate": 0.46100643930360125,
+  "validation": {
+    "accuracy": 0.867699642431466,
+    "precision": 0.8693181818181818,
+    "recall": 0.8247978436657682,
+    "f1": 0.8464730290456431,
+    "tp": 306,
+    "fp": 46,
+    "tn": 422,
+    "fn": 65,
+    "totalSamples": 839
+  },
+  "full": {
+    "accuracy": 0.8817076079179585,
+    "precision": 0.8709344346928239,
+    "recall": 0.8727366787377134,
+    "f1": 0.8718346253229974,
+    "tp": 1687,
+    "fp": 250,
+    "tn": 2010,
+    "fn": 246,
+    "totalSamples": 4193
+  },
+  "bestValAcc": 0.8700834512710571,
+  "bestEpoch": 76,
+  "alpha": 0.7,
+  "featureNames": [
+    "dist_to_center",
+    "bearing_sin",
+    "bearing_cos",
+    "orange_zone_size",
+    "city_lat",
+    "city_lng",
+    "center_lat",
+    "center_lng",
+    "countdown",
+    "hour_sin",
+    "hour_cos",
+    "city_historical_red_rate"
+  ],
+  "classWeights": {
+    "0": 1,
+    "1": 1.147247119078105
+  },
+  "hyperparams": {
+    "epochs": 80,
+    "batchSize": 64,
+    "learningRate": 0.001
+  }
+}

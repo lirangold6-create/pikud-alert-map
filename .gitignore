@@ -12,8 +12,9 @@ collected-waves.json
 training-data.json
 training-output.txt
 
-# Model files (can be regenerated)
-model/
+# Model files (INCLUDED in live-hosting branch for deployment)
+# Trained locally and committed to avoid training on free tier
+# model/ - commented out for live-hosting branch
 
 # Package lock (optional - uncomment if you want to track it)
 # package-lock.json

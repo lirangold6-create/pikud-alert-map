@@ -3,14 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-let tf;
-try { 
-  tf = require('@tensorflow/tfjs'); 
-  // Set backend to CPU for server environment
-  if (tf) tf.setBackend('cpu');
-} catch { 
-  tf = null; 
-}
+// ML disabled for free tier deployment
+let tf = null;
 
 const PORT = process.env.PORT || 3000;
 
@@ -333,6 +327,44 @@ const server = http.createServer(async (req, res) => {
       metrics: mlMetrics,
       alpha: mlMetrics ? mlMetrics.alpha : 0
     });
+    return;
+  }
+
+  if (url.pathname === '/api/leaderboards') {
+    const collectedFile = path.join(__dirname, 'collected-alerts.json');
+    if (!fs.existsSync(collectedFile)) {
+      sendJson(res, { orange: [], red: [] });
+      return;
+    }
+    
+    const days = parseInt(url.searchParams.get('days')) || 7;
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+    
+    const raw = JSON.parse(fs.readFileSync(collectedFile, 'utf8'));
+    const alerts = Object.values(raw).filter(a => a.alertDate >= cutoff);
+    
+    const cityStats = {};
+    
+    for (const alert of alerts) {
+      const city = alert.data;
+      if (!cityStats[city]) {
+        cityStats[city] = { city, orange: 0, red: 0, total: 0 };
+      }
+      
+      const title = alert.title || '';
+      if (title.includes('בדקות הקרובות')) {
+        cityStats[city].orange++;
+      } else if (title.includes('ירי רקטות וטילים') && !title.includes('האירוע הסתיים')) {
+        cityStats[city].red++;
+      }
+      cityStats[city].total++;
+    }
+    
+    const cities = Object.values(cityStats);
+    const orangeLeaderboard = cities.filter(c => c.orange > 0).sort((a, b) => b.orange - a.orange).slice(0, 20);
+    const redLeaderboard = cities.filter(c => c.red > 0).sort((a, b) => b.red - a.red).slice(0, 20);
+    
+    sendJson(res, { orange: orangeLeaderboard, red: redLeaderboard });
     return;
   }
 

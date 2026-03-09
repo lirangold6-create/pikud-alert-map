@@ -253,6 +253,57 @@
     }
     .trend-pct { width: 32px; text-align: left; color: #aaa; font-weight: 600; direction: ltr; }
 
+    .leaderboard-section {
+      margin-bottom: 20px;
+    }
+    .leaderboard-title {
+      font-size: 14px; font-weight: 700; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .leaderboard-title .badge {
+      display: inline-block; padding: 3px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600;
+    }
+    .leaderboard-title .badge.orange { background: rgba(249,115,22,0.2); color: #fb923c; }
+    .leaderboard-title .badge.red { background: rgba(239,68,68,0.2); color: #f87171; }
+    .leaderboard-table {
+      width: 100%; border-collapse: collapse;
+    }
+    .leaderboard-table tr {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .leaderboard-table tr:hover {
+      background: rgba(255,255,255,0.02); cursor: pointer;
+    }
+    .leaderboard-table td {
+      padding: 10px 8px; font-size: 13px;
+    }
+    .leaderboard-rank {
+      width: 32px; text-align: center; font-weight: 800;
+      color: #666;
+    }
+    .leaderboard-rank.top1 { color: #fbbf24; font-size: 16px; }
+    .leaderboard-rank.top2 { color: #c0c0c0; font-size: 15px; }
+    .leaderboard-rank.top3 { color: #cd7f32; font-size: 14px; }
+    .leaderboard-city {
+      flex: 1;
+    }
+    .leaderboard-count {
+      width: 48px; text-align: left; font-weight: 700;
+      direction: ltr;
+    }
+    .leaderboard-count.orange { color: #fb923c; }
+    .leaderboard-count.red { color: #f87171; }
+    .leaderboard-bar-container {
+      width: 60px; height: 6px; background: rgba(255,255,255,0.05);
+      border-radius: 3px; overflow: hidden;
+    }
+    .leaderboard-bar {
+      height: 100%; border-radius: 3px; transition: width 0.3s;
+    }
+    .leaderboard-bar.orange { background: linear-gradient(90deg, #f97316, #fb923c); }
+    .leaderboard-bar.red { background: linear-gradient(90deg, #ef4444, #f87171); }
+
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
@@ -269,6 +320,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="live">התרעות חיות</button>
       <button class="tab" data-tab="history">היסטוריה</button>
+      <button class="tab" data-tab="leaderboards">לוחות מובילים</button>
     </div>
 
     <div class="tab-content">
@@ -295,6 +347,19 @@
           <div class="no-history">בחר עיר כדי לראות היסטוריית התרעות</div>
         </div>
       </div>
+
+      <!-- Leaderboards Tab -->
+      <div id="tab-leaderboards" class="tab-pane">
+        <div class="time-selector" id="leaderboard-time-selector">
+          <button class="time-btn" data-days="1">24 שעות</button>
+          <button class="time-btn" data-days="3">3 ימים</button>
+          <button class="time-btn active" data-days="7">שבוע</button>
+          <button class="time-btn" data-days="30">חודש</button>
+        </div>
+        <div id="leaderboards-content">
+          <div class="no-history">טוען...</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -314,6 +379,7 @@
     let refreshTimer = null, countdown = 10;
     let fullHistory = [];
     let selectedCity = null;
+    let leaderboardDays = 7;
 
     // ── Data Loading ──
     async function loadStaticData() {
@@ -332,13 +398,23 @@
       fullHistory = await fetch('/api/history').then(r => r.json());
     }
 
-    // Time window selector
-    document.querySelectorAll('.time-btn').forEach(btn => {
+    // Time window selector for history
+    document.querySelectorAll('#time-selector .time-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#time-selector .time-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         historyDays = parseInt(btn.dataset.days);
         if (selectedCity) selectCity(selectedCity);
+      });
+    });
+
+    // Time window selector for leaderboards
+    document.querySelectorAll('#leaderboard-time-selector .time-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#leaderboard-time-selector .time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        leaderboardDays = parseInt(btn.dataset.days);
+        loadLeaderboards();
       });
     });
 
@@ -450,6 +526,7 @@
         tab.classList.add('active');
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
         if (tab.dataset.tab === 'history' && fullHistory.length === 0) loadHistory();
+        if (tab.dataset.tab === 'leaderboards') loadLeaderboards();
       });
     });
 
@@ -693,6 +770,106 @@
       document.getElementById('history-content').innerHTML =
         '<div class="no-history">בחר עיר כדי לראות היסטוריית התרעות</div>';
       map.setView([31.5, 34.9], 8);
+    }
+
+    // ── Leaderboards ──
+    async function loadLeaderboards() {
+      const content = document.getElementById('leaderboards-content');
+      content.innerHTML = '<div class="no-history">טוען...</div>';
+
+      try {
+        const res = await fetch(`/api/leaderboards?days=${leaderboardDays}`);
+        const data = await res.json();
+        renderLeaderboards(data);
+      } catch (err) {
+        content.innerHTML = '<div class="no-history">שגיאה בטעינת הנתונים</div>';
+      }
+    }
+
+    function renderLeaderboards(data) {
+      const content = document.getElementById('leaderboards-content');
+      
+      if (data.orange.length === 0 && data.red.length === 0) {
+        content.innerHTML = '<div class="no-history">אין נתונים לתקופה זו</div>';
+        return;
+      }
+
+      let html = '';
+
+      // Orange alerts leaderboard
+      if (data.orange.length > 0) {
+        const maxOrange = data.orange[0].orange;
+        html += `
+          <div class="leaderboard-section">
+            <div class="leaderboard-title">
+              <span class="badge orange">כתום</span>
+              ערים עם הכי הרבה אזהרות (בדקות הקרובות)
+            </div>
+            <table class="leaderboard-table">
+              ${data.orange.map((entry, i) => {
+                const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+                const rankSymbol = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+                const barWidth = (entry.orange / maxOrange * 100).toFixed(1);
+                return `
+                  <tr onclick="jumpToCity('${entry.city}')">
+                    <td class="leaderboard-rank ${rankClass}">${rankSymbol}</td>
+                    <td class="leaderboard-city">${entry.city}</td>
+                    <td class="leaderboard-count orange">${entry.orange}</td>
+                    <td>
+                      <div class="leaderboard-bar-container">
+                        <div class="leaderboard-bar orange" style="width: ${barWidth}%"></div>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </table>
+          </div>
+        `;
+      }
+
+      // Red alerts leaderboard
+      if (data.red.length > 0) {
+        const maxRed = data.red[0].red;
+        html += `
+          <div class="leaderboard-section">
+            <div class="leaderboard-title">
+              <span class="badge red">אדום</span>
+              ערים עם הכי הרבה אזעקות (ירי רקטות)
+            </div>
+            <table class="leaderboard-table">
+              ${data.red.map((entry, i) => {
+                const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+                const rankSymbol = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+                const barWidth = (entry.red / maxRed * 100).toFixed(1);
+                return `
+                  <tr onclick="jumpToCity('${entry.city}')">
+                    <td class="leaderboard-rank ${rankClass}">${rankSymbol}</td>
+                    <td class="leaderboard-city">${entry.city}</td>
+                    <td class="leaderboard-count red">${entry.red}</td>
+                    <td>
+                      <div class="leaderboard-bar-container">
+                        <div class="leaderboard-bar red" style="width: ${barWidth}%"></div>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </table>
+          </div>
+        `;
+      }
+
+      content.innerHTML = html;
+    }
+
+    function jumpToCity(cityName) {
+      // Switch to history tab and select the city
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelector('[data-tab="history"]').classList.add('active');
+      document.getElementById('tab-history').classList.add('active');
+      selectCity(cityName);
     }
 
     // ── Live Alerts ──

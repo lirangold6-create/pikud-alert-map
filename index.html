@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Alert Map — Pikud HaOref</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a; color: #fff; height: 100vh; overflow: hidden;
+    }
+
+    #map { position: absolute; inset: 0; z-index: 1; }
+
+    #panel {
+      position: absolute; top: 12px; right: 12px; z-index: 1000;
+      background: rgba(10, 10, 10, 0.92); backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+      width: 360px; max-height: calc(100vh - 24px);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .panel-header { padding: 18px 20px 0; }
+    .panel-header h1 { font-size: 17px; font-weight: 700; }
+    .panel-header .subtitle { font-size: 11px; color: #666; margin-top: 2px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 0; margin: 14px 20px 0; border-radius: 8px;
+      background: rgba(255,255,255,0.05); overflow: hidden;
+    }
+    .tab {
+      flex: 1; padding: 8px 0; text-align: center; font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
+      color: #666; border: none; background: none;
+    }
+    .tab.active { background: rgba(255,255,255,0.1); color: #fff; }
+    .tab:hover:not(.active) { color: #aaa; }
+
+    .tab-content { flex: 1; overflow-y: auto; padding: 14px 20px 16px; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Status */
+    .status-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 12px;
+      font-size: 13px; font-weight: 600;
+    }
+    .status-bar.active { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .status-bar.warning { background: rgba(249,115,22,0.12); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
+    .status-bar.safe { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .status-bar.quiet { background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+
+    .pulse { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .pulse.red { background: #ef4444; animation: pulse-red 1.5s infinite; }
+    .pulse.orange { background: #f97316; animation: pulse-orange 1.5s infinite; }
+    .pulse.green { background: #22c55e; }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+      50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+    }
+    @keyframes pulse-orange {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.6); }
+      50% { box-shadow: 0 0 0 8px rgba(249,115,22,0); }
+    }
+
+    .alert-type-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; margin-bottom: 6px;
+    }
+    .badge-red { background: rgba(239,68,68,0.2); color: #f87171; }
+    .badge-orange { background: rgba(249,115,22,0.2); color: #fb923c; }
+    .badge-green { background: rgba(34,197,94,0.2); color: #4ade80; }
+
+    .alert-group { margin-bottom: 12px; }
+    .alert-group-header { font-size: 12px; font-weight: 600; color: #888; margin-bottom: 6px; }
+
+    .city-list { list-style: none; }
+    .city-list li {
+      padding: 6px 10px; border-radius: 6px; font-size: 13px;
+      margin-bottom: 3px;
+    }
+    .city-list li.severity-red { background: rgba(239,68,68,0.08); border-right: 3px solid #ef4444; }
+    .city-list li.severity-orange { background: rgba(249,115,22,0.06); border-right: 3px solid #f97316; }
+    .city-list li.severity-green { background: rgba(34,197,94,0.06); border-right: 3px solid #22c55e; }
+    .city-list li.prob-high { background: rgba(239,68,68,0.12); border-right: 3px solid #ef4444; }
+    .city-list li.prob-med { background: rgba(249,115,22,0.08); border-right: 3px solid #f97316; }
+    .city-list li.prob-low { background: rgba(234,179,8,0.06); border-right: 3px solid #eab308; }
+    .city-list li.prob-none { background: rgba(100,100,100,0.04); border-right: 3px solid #555; }
+    .countdown-label {
+      font-size: 11px; color: #999; display: inline-block;
+      margin-left: 6px; direction: ltr;
+    }
+    .prob-badge {
+      display: inline-block; padding: 1px 6px; border-radius: 10px;
+      font-size: 10px; font-weight: 700; margin-left: 6px;
+      direction: ltr; vertical-align: middle;
+    }
+    .prob-badge.high { background: rgba(239,68,68,0.25); color: #f87171; }
+    .prob-badge.med { background: rgba(249,115,22,0.2); color: #fb923c; }
+    .prob-badge.low { background: rgba(234,179,8,0.15); color: #eab308; }
+    .prob-badge.none { background: rgba(100,100,100,0.15); color: #888; }
+    .prob-summary {
+      padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;
+      font-size: 12px; background: rgba(249,115,22,0.08);
+      border: 1px solid rgba(249,115,22,0.15); color: #fb923c;
+    }
+    .prob-summary .center-info { font-size: 11px; color: #888; margin-top: 4px; direction: ltr; }
+    .model-indicator {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 8px; border-radius: 6px; font-size: 10px;
+      font-weight: 600; margin-top: 6px; direction: ltr;
+    }
+    .model-indicator.ml { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .model-indicator.fallback { background: rgba(100,100,100,0.12); color: #888; }
+    .model-indicator .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .model-indicator.ml .dot { background: #818cf8; }
+    .model-indicator.fallback .dot { background: #888; }
+
+    #refresh-info {
+      font-size: 10px; color: #444; margin-top: 10px;
+      text-align: center; direction: ltr;
+    }
+
+    /* History tab */
+    .search-box {
+      position: relative; margin-bottom: 12px;
+    }
+    .search-box input {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
+      color: #fff; font-size: 14px; outline: none; direction: rtl;
+    }
+    .search-box input:focus { border-color: rgba(99,102,241,0.5); }
+    .search-box input::placeholder { color: #555; }
+
+    .city-dropdown {
+      position: absolute; top: 100%; right: 0; left: 0; z-index: 10;
+      background: rgba(20,20,20,0.98); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; max-height: 240px; overflow-y: auto;
+      margin-top: 4px; display: none;
+    }
+    .city-dropdown.open { display: block; }
+    .city-option {
+      padding: 8px 14px; font-size: 13px; cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .city-option:hover { background: rgba(99,102,241,0.15); }
+    .city-option .zone-label { font-size: 11px; color: #666; margin-right: 6px; }
+
+    .selected-city-info {
+      background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 10px; padding: 14px; margin-bottom: 14px;
+    }
+    .selected-city-name { font-size: 16px; font-weight: 700; }
+    .selected-city-zone { font-size: 12px; color: #888; margin-top: 2px; }
+    .selected-city-countdown { font-size: 12px; color: #fbbf24; margin-top: 4px; }
+
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.04); border-radius: 8px; padding: 12px;
+      text-align: center;
+    }
+    .stat-value { font-size: 22px; font-weight: 800; }
+    .stat-value.red { color: #f87171; }
+    .stat-value.amber { color: #fbbf24; }
+    .stat-value.blue { color: #60a5fa; }
+    .stat-value.purple { color: #a78bfa; }
+    .stat-label { font-size: 10px; color: #666; margin-top: 2px; }
+
+    .type-breakdown { margin-bottom: 14px; }
+    .type-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px;
+    }
+    .type-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .type-name { flex: 1; }
+    .type-count { font-weight: 700; color: #aaa; }
+
+    .timeline { position: relative; }
+    .timeline::before {
+      content: ''; position: absolute; right: 5px; top: 0; bottom: 0;
+      width: 2px; background: rgba(255,255,255,0.06);
+    }
+    .timeline-item {
+      position: relative; padding: 8px 20px 8px 0; font-size: 12px;
+    }
+    .timeline-item::before {
+      content: ''; position: absolute; right: 1px; top: 14px;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #ef4444; border: 2px solid #0a0a0a;
+    }
+    .timeline-item.sev-red::before { background: #ef4444; }
+    .timeline-item.sev-orange::before { background: #f97316; }
+    .timeline-item.sev-green::before { background: #22c55e; }
+    .timeline-item.sev-default::before { background: #888; }
+    .timeline-time { color: #666; direction: ltr; display: inline-block; }
+    .timeline-title { font-weight: 500; }
+    .timeline-title.sev-red { color: #f87171; }
+    .timeline-title.sev-orange { color: #fb923c; }
+    .timeline-title.sev-green { color: #4ade80; }
+    .timeline-title.sev-default { color: #ccc; }
+
+    .no-history { text-align: center; color: #555; padding: 40px 0; font-size: 13px; }
+
+    .clear-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.1);
+      color: #888; border-radius: 6px; padding: 4px 10px; font-size: 11px;
+      cursor: pointer; margin-top: 8px;
+    }
+    .clear-btn:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    .section-title { font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px; }
+
+    .time-selector {
+      display: flex; gap: 4px; margin-bottom: 12px; border-radius: 6px;
+      background: rgba(255,255,255,0.04); padding: 3px; overflow: hidden;
+    }
+    .time-btn {
+      flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600;
+      border: none; background: none; color: #666; cursor: pointer; border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .time-btn.active { background: rgba(99,102,241,0.2); color: #818cf8; }
+    .time-btn:hover:not(.active) { color: #aaa; }
+
+    .conversion-card {
+      background: rgba(255,255,255,0.03); border-radius: 10px; padding: 14px;
+      margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.06);
+    }
+    .conversion-header { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .conversion-big {
+      font-size: 36px; font-weight: 900; line-height: 1;
+    }
+    .conversion-label { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .trend-row {
+      display: flex; align-items: center; gap: 6px; padding: 4px 0;
+      font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .trend-date { width: 52px; color: #888; direction: ltr; flex-shrink: 0; }
+    .trend-bar-bg {
+      flex: 1; height: 14px; background: rgba(255,255,255,0.04);
+      border-radius: 3px; overflow: hidden; position: relative;
+    }
+    .trend-bar-fill {
+      height: 100%; border-radius: 3px; transition: width 0.3s;
+    }
+    .trend-pct { width: 32px; text-align: left; color: #aaa; font-weight: 600; direction: ltr; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="panel">
+    <div class="panel-header">
+      <h1>מפת התרעות חיות</h1>
+      <div class="subtitle">Live Alert Map — Pikud HaOref</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="live">התרעות חיות</button>
+      <button class="tab" data-tab="history">היסטוריה</button>
+    </div>
+
+    <div class="tab-content">
+      <!-- Live Tab -->
+      <div id="tab-live" class="tab-pane active">
+        <div id="status"></div>
+        <div id="alert-content"></div>
+        <div id="refresh-info"></div>
+      </div>
+
+      <!-- History Tab -->
+      <div id="tab-history" class="tab-pane">
+        <div class="search-box">
+          <input type="text" id="city-search" placeholder="חפש עיר..." autocomplete="off">
+          <div class="city-dropdown" id="city-dropdown"></div>
+        </div>
+        <div class="time-selector" id="time-selector">
+          <button class="time-btn" data-days="1">24 שעות</button>
+          <button class="time-btn" data-days="3">3 ימים</button>
+          <button class="time-btn active" data-days="7">שבוע</button>
+          <button class="time-btn" data-days="30">חודש</button>
+        </div>
+        <div id="history-content">
+          <div class="no-history">בחר עיר כדי לראות היסטוריית התרעות</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ── Map Setup ──
+    const map = L.map('map', { center: [31.5, 34.9], zoom: 8, zoomControl: false });
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+    }).addTo(map);
+
+    let citiesData = [], polygonsData = {}, nameToCity = {};
+    let alertLayer = L.layerGroup().addTo(map);
+    let historyLayer = L.layerGroup().addTo(map);
+    let selectedCityLayer = L.layerGroup().addTo(map);
+    let refreshTimer = null, countdown = 10;
+    let fullHistory = [];
+    let selectedCity = null;
+
+    // ── Data Loading ──
+    async function loadStaticData() {
+      const [citiesRes, polygonsRes] = await Promise.all([
+        fetch('/api/cities').then(r => r.json()),
+        fetch('/api/polygons').then(r => r.json())
+      ]);
+      citiesData = citiesRes.filter(c => c.id !== 0);
+      polygonsData = polygonsRes;
+      citiesData.forEach(c => { nameToCity[c.name] = c; });
+    }
+
+    let historyDays = 7;
+
+    async function loadHistory() {
+      fullHistory = await fetch('/api/history').then(r => r.json());
+    }
+
+    // Time window selector
+    document.querySelectorAll('.time-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        historyDays = parseInt(btn.dataset.days);
+        if (selectedCity) selectCity(selectedCity);
+      });
+    });
+
+    function getPolygonCoords(cityName) {
+      const city = nameToCity[cityName];
+      if (!city) return null;
+      const poly = polygonsData[city.id];
+      if (!poly) return null;
+      return poly.map(p => [p[0], p[1]]);
+    }
+
+    function getCityCoords(cityName) {
+      const city = nameToCity[cityName];
+      return (city && city.lat && city.lng) ? [city.lat, city.lng] : null;
+    }
+
+    const CATEGORY_NAMES = {
+      1: 'ירי רקטות וטילים', 2: 'חדירת כלי טיס עוין', 3: 'רעידת אדמה',
+      4: 'צונאמי', 5: 'חומרים מסוכנים', 6: 'חדירת מחבלים',
+      7: 'אירוע רדיולוגי', 13: 'חדירת כלי טיס עוין'
+    };
+
+    const SEVERITY_STYLES = {
+      red:    { color: '#ef4444', fill: '#ef4444', fillOpacity: 0.35 },
+      orange: { color: '#f97316', fill: '#f97316', fillOpacity: 0.25 },
+      green:  { color: '#22c55e', fill: '#22c55e', fillOpacity: 0.20 },
+    };
+
+    function getTitleSeverity(title) {
+      if (!title) return 'red';
+      if (title.includes('האירוע הסתיים')) return 'green';
+      if (title.includes('בדקות הקרובות')) return 'orange';
+      return 'red';
+    }
+
+    // ── Probability Engine ──
+    // Based on analysis: distance from red zone center → P(red alert)
+    // Piecewise linear interpolation from observed data
+    const PROB_CURVE = [
+      { dist: 0,   prob: 100 },
+      { dist: 5,   prob: 100 },
+      { dist: 10,  prob: 100 },
+      { dist: 15,  prob: 100 },
+      { dist: 17,  prob: 90 },
+      { dist: 20,  prob: 70 },
+      { dist: 25,  prob: 39 },
+      { dist: 30,  prob: 20 },
+      { dist: 40,  prob: 10 },
+      { dist: 50,  prob: 4 },
+      { dist: 60,  prob: 1 },
+      { dist: 80,  prob: 0 },
+    ];
+
+    function haversineKm(lat1, lng1, lat2, lng2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function centroid(coordsList) {
+      if (coordsList.length === 0) return null;
+      const sum = coordsList.reduce((a, c) => [a[0] + c[0], a[1] + c[1]], [0, 0]);
+      return [sum[0] / coordsList.length, sum[1] / coordsList.length];
+    }
+
+    function distToProb(distKm) {
+      if (distKm <= PROB_CURVE[0].dist) return PROB_CURVE[0].prob;
+      if (distKm >= PROB_CURVE[PROB_CURVE.length - 1].dist) return PROB_CURVE[PROB_CURVE.length - 1].prob;
+      for (let i = 0; i < PROB_CURVE.length - 1; i++) {
+        const a = PROB_CURVE[i], b = PROB_CURVE[i + 1];
+        if (distKm >= a.dist && distKm <= b.dist) {
+          const t = (distKm - a.dist) / (b.dist - a.dist);
+          return a.prob + t * (b.prob - a.prob);
+        }
+      }
+      return 0;
+    }
+
+    function probToClass(prob) {
+      if (prob >= 70) return 'high';
+      if (prob >= 30) return 'med';
+      if (prob >= 5) return 'low';
+      return 'none';
+    }
+
+    function probToColor(prob) {
+      if (prob >= 70) return { color: '#ef4444', fill: '#ef4444', opacity: 0.30 + prob / 400 };
+      if (prob >= 30) return { color: '#f97316', fill: '#f97316', opacity: 0.15 + prob / 500 };
+      if (prob >= 5) return { color: '#eab308', fill: '#eab308', opacity: 0.08 + prob / 800 };
+      return { color: '#666', fill: '#666', opacity: 0.05 };
+    }
+
+    function probLabel(prob) {
+      if (prob >= 90) return 'כמעט ודאי';
+      if (prob >= 70) return 'סיכוי גבוה';
+      if (prob >= 40) return 'ייתכן';
+      if (prob >= 10) return 'סיכוי נמוך';
+      return 'כמעט אפס';
+    }
+
+    // ── Tabs ──
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'history' && fullHistory.length === 0) loadHistory();
+      });
+    });
+
+    // ── City Search ──
+    const searchInput = document.getElementById('city-search');
+    const dropdown = document.getElementById('city-dropdown');
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim();
+      if (q.length === 0) { dropdown.classList.remove('open'); return; }
+      const matches = citiesData
+        .filter(c => c.name.includes(q) || (c.name_en && c.name_en.toLowerCase().includes(q.toLowerCase())))
+        .slice(0, 30);
+      if (matches.length === 0) { dropdown.classList.remove('open'); return; }
+      dropdown.innerHTML = matches.map(c =>
+        `<div class="city-option" data-name="${c.name}">
+          ${c.name} <span class="zone-label">${c.zone || ''}</span>
+        </div>`
+      ).join('');
+      dropdown.classList.add('open');
+      dropdown.querySelectorAll('.city-option').forEach(opt => {
+        opt.addEventListener('click', () => selectCity(opt.dataset.name));
+      });
+    });
+
+    searchInput.addEventListener('focus', () => {
+      if (searchInput.value.trim().length > 0) searchInput.dispatchEvent(new Event('input'));
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.search-box')) dropdown.classList.remove('open');
+    });
+
+    async function selectCity(cityName) {
+      selectedCity = cityName;
+      searchInput.value = cityName;
+      dropdown.classList.remove('open');
+
+      const content = document.getElementById('history-content');
+      content.innerHTML = '<div class="no-history">טוען...</div>';
+
+      // Fetch full history from the new API
+      try {
+        const res = await fetch(`/api/full-history?mode=3&city=${encodeURIComponent(cityName)}`);
+        const data = await res.json();
+        renderCityHistory(cityName, data);
+      } catch {
+        // Fallback to collected data
+        if (fullHistory.length === 0) await loadHistory();
+        const data = fullHistory.filter(h => h.data === cityName).map(h => ({
+          data: h.data, date: h.alertDate.split(' ')[0].split('-').reverse().join('.'),
+          time: h.alertDate.split(' ')[1], category: h.category, category_desc: h.title,
+          alertDate: h.alertDate
+        }));
+        renderCityHistory(cityName, data);
+      }
+
+      selectedCityLayer.clearLayers();
+      const poly = getPolygonCoords(cityName);
+      if (poly && poly.length > 0) {
+        const polygon = L.polygon(poly, {
+          color: '#6366f1', fillColor: '#6366f1', fillOpacity: 0.2, weight: 2
+        }).addTo(selectedCityLayer);
+        map.fitBounds(polygon.getBounds(), { padding: [100, 100], maxZoom: 14 });
+      } else {
+        const coords = getCityCoords(cityName);
+        if (coords) {
+          L.circleMarker(coords, {
+            radius: 10, color: '#6366f1', fillColor: '#6366f1', fillOpacity: 0.3
+          }).addTo(selectedCityLayer);
+          map.setView(coords, 13);
+        }
+      }
+    }
+
+    function isAlertOrange(desc) { return desc && desc.includes('בדקות הקרובות'); }
+    function isAlertRed(desc) { return desc && desc.includes('ירי רקטות וטילים') && !desc.includes('האירוע הסתיים'); }
+    function isAlertGreen(desc) { return desc && (desc.includes('האירוע הסתיים') || desc.includes('ניתן לצאת')); }
+
+    function renderCityHistory(cityName, rawAlerts) {
+      const city = nameToCity[cityName];
+      const content = document.getElementById('history-content');
+
+      if (!city) { content.innerHTML = '<div class="no-history">עיר לא נמצאה</div>'; return; }
+
+      // Filter by time window
+      const cutoff = new Date(Date.now() - historyDays * 86400000);
+      const alerts = rawAlerts.filter(a => {
+        const d = a.date ? a.date.split('.').reverse().join('-') : a.alertDate?.split(' ')[0];
+        return new Date(d) >= cutoff;
+      }).sort((a, b) => {
+        const tA = a.date ? a.date.split('.').reverse().join('-') + 'T' + a.time : a.alertDate;
+        const tB = b.date ? b.date.split('.').reverse().join('-') + 'T' + b.time : b.alertDate;
+        return tB.localeCompare(tA);
+      });
+
+      // Group into waves (20-min gap)
+      const sortedAsc = [...alerts].reverse();
+      const waves = [];
+      if (sortedAsc.length > 0) {
+        let curr = { alerts: [sortedAsc[0]], orange: false, red: false, green: false };
+        const getTime = a => new Date((a.date ? a.date.split('.').reverse().join('-') : a.alertDate?.split(' ')[0]) + 'T' + (a.time || a.alertDate?.split(' ')[1])).getTime();
+        
+        for (let i = 1; i < sortedAsc.length; i++) {
+          if (getTime(sortedAsc[i]) - getTime(sortedAsc[i-1]) > 20 * 60000) {
+            waves.push(curr);
+            curr = { alerts: [], orange: false, red: false, green: false };
+          }
+          curr.alerts.push(sortedAsc[i]);
+        }
+        waves.push(curr);
+      }
+
+      // Classify each wave
+      let orangeWaves = 0, convertedWaves = 0, falseScares = 0, redOnlyWaves = 0;
+      for (const w of waves) {
+        const desc = a => a.category_desc || a.title || '';
+        w.orange = w.alerts.some(a => isAlertOrange(desc(a)));
+        w.red = w.alerts.some(a => isAlertRed(desc(a)));
+        w.green = w.alerts.some(a => isAlertGreen(desc(a)));
+        if (w.orange) {
+          orangeWaves++;
+          if (w.red) convertedWaves++;
+          else falseScares++;
+        } else if (w.red) {
+          redOnlyWaves++;
+        }
+      }
+
+      const convRate = orangeWaves > 0 ? Math.round(convertedWaves / orangeWaves * 100) : 0;
+      const falseRate = orangeWaves > 0 ? Math.round(falseScares / orangeWaves * 100) : 0;
+
+      // Daily trend
+      const dailyStats = {};
+      for (const w of waves) {
+        const d = w.alerts[0].date || w.alerts[0].alertDate?.split(' ')[0].split('-').reverse().join('.');
+        if (!dailyStats[d]) dailyStats[d] = { orange: 0, red: 0, false: 0 };
+        if (w.orange) {
+          dailyStats[d].orange++;
+          if (w.red) dailyStats[d].red++;
+          else dailyStats[d].false++;
+        }
+      }
+
+      // Category counts
+      const catCounts = {};
+      alerts.forEach(a => {
+        const d = a.category_desc || a.title || 'אחר';
+        catCounts[d] = (catCounts[d] || 0) + 1;
+      });
+
+      const convColor = convRate >= 70 ? '#f87171' : convRate >= 40 ? '#fb923c' : '#4ade80';
+
+      let html = `
+        <div class="selected-city-info">
+          <div class="selected-city-name">${city.name}</div>
+          <div class="selected-city-zone">${city.zone || ''} ${city.name_en ? '• ' + city.name_en : ''}</div>
+          ${city.countdown ? `<div class="selected-city-countdown">⏱ ${city.countdown} שניות להיכנס למרחב מוגן</div>` : ''}
+          <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
+        </div>
+
+        <div class="conversion-card">
+          <div class="conversion-header">סיכוי שאחרי אזהרה (כתום) -> תגיע אזעקה (אדום)</div>
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div class="conversion-big" style="color:${convColor}">${convRate}%</div>
+            <div style="font-size:12px;color:#888">${convertedWaves}/${orangeWaves} גלים</div>
+          </div>
+          <div class="conversion-label">${falseScares} פעמים קיבלת כתום ללא אדום (${falseRate}% אזעקות שווא)</div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value red">${alerts.filter(a=>isAlertRed(a.category_desc||a.title)).length}</div><div class="stat-label">אדום (רקטות)</div></div>
+          <div class="stat-card"><div class="stat-value amber">${alerts.filter(a=>isAlertOrange(a.category_desc||a.title)).length}</div><div class="stat-label">כתום (צפוי)</div></div>
+          <div class="stat-card"><div class="stat-value blue">${waves.length}</div><div class="stat-label">גלי התרעות</div></div>
+          <div class="stat-card"><div class="stat-value purple">${alerts.length}</div><div class="stat-label">סה"כ התרעות</div></div>
+        </div>`;
+
+      // Daily trend chart
+      const sortedDays = Object.entries(dailyStats).sort((a,b) => {
+        const da = a[0].split('.').reverse().join('-'), db = b[0].split('.').reverse().join('-');
+        return da.localeCompare(db);
+      });
+
+      if (sortedDays.length > 1) {
+        html += '<div class="section-title">מגמת המרה יומית (כתום → אדום)</div>';
+        for (const [date, stats] of sortedDays) {
+          if (stats.orange === 0) continue;
+          const rate = Math.round(stats.red / stats.orange * 100);
+          const fillColor = rate >= 70 ? '#ef4444' : rate >= 40 ? '#f97316' : '#22c55e';
+          html += `<div class="trend-row">
+            <span class="trend-date">${date.substring(0,5)}</span>
+            <div class="trend-bar-bg">
+              <div class="trend-bar-fill" style="width:${rate}%;background:${fillColor}"></div>
+            </div>
+            <span class="trend-pct">${rate}%</span>
+          </div>`;
+        }
+      }
+
+      // Category breakdown
+      if (Object.keys(catCounts).length > 0) {
+        html += '<div class="section-title" style="margin-top:14px">פילוח לפי סוג</div><div class="type-breakdown">';
+        for (const [name, count] of Object.entries(catCounts).sort((a,b) => b[1] - a[1])) {
+          const sev = getTitleSeverity(name);
+          const color = SEVERITY_STYLES[sev] ? SEVERITY_STYLES[sev].color : '#888';
+          html += `<div class="type-row"><div class="type-dot" style="background:${color}"></div><div class="type-name">${name}</div><div class="type-count">${count}</div></div>`;
+        }
+        html += '</div>';
+      }
+
+      // Timeline
+      if (alerts.length > 0) {
+        html += '<div class="section-title" style="margin-top:14px">ציר זמן</div><div class="timeline">';
+        const shown = alerts.slice(0, 150);
+        let prevDate = '';
+        for (const alert of shown) {
+          const date = alert.date || alert.alertDate?.split(' ')[0].split('-').reverse().join('.');
+          const time = alert.time || alert.alertDate?.split(' ')[1] || '';
+          const title = alert.category_desc || alert.title || 'התרעה';
+          const sev = getTitleSeverity(title);
+          const dateLabel = date !== prevDate ? `<div style="font-size:10px;color:#555;padding:6px 0 2px;direction:ltr">${date}</div>` : '';
+          prevDate = date;
+          html += `${dateLabel}<div class="timeline-item sev-${sev}">
+            <span class="timeline-time">${time}</span>
+            <span class="timeline-title sev-${sev}"> — ${title}</span>
+          </div>`;
+        }
+        if (alerts.length > 150) html += `<div style="text-align:center;color:#555;font-size:11px;padding:10px 0">+${alerts.length - 150} התרעות נוספות</div>`;
+        html += '</div>';
+      } else {
+        html += '<div class="no-history">אין התרעות בתקופה זו</div>';
+      }
+
+      content.innerHTML = html;
+    }
+
+    function clearSelection() {
+      selectedCity = null;
+      searchInput.value = '';
+      selectedCityLayer.clearLayers();
+      document.getElementById('history-content').innerHTML =
+        '<div class="no-history">בחר עיר כדי לראות היסטוריית התרעות</div>';
+      map.setView([31.5, 34.9], 8);
+    }
+
+    // ── Live Alerts ──
+    async function refreshAlerts() {
+      try {
+        const [alertRes, historyRes] = await Promise.all([
+          fetch('/api/alerts').then(r => r.json()),
+          fetch('/api/history').then(r => r.json())
+        ]);
+
+        alertLayer.clearLayers();
+
+        const statusEl = document.getElementById('status');
+        const contentEl = document.getElementById('alert-content');
+
+        // Build per-city map from recent history (last 5 min)
+        const now = Date.now();
+        const recentCities = new Map();
+        if (historyRes && historyRes.length > 0) {
+          for (const h of historyRes) {
+            const alertTime = new Date(h.alertDate.replace(' ', 'T')).getTime();
+            if (now - alertTime > 300000) continue;
+            const city = h.data;
+            if (!recentCities.has(city) || new Date(h.alertDate.replace(' ', 'T')) > new Date(recentCities.get(city).alertDate.replace(' ', 'T'))) {
+              recentCities.set(city, h);
+            }
+          }
+        }
+
+        // Also include cities from active Alerts.json
+        if (alertRes.active && alertRes.alerts) {
+          const alert = alertRes.alerts;
+          const cities = alert.data || [];
+          for (const city of cities) {
+            if (!recentCities.has(city)) {
+              recentCities.set(city, { data: city, title: alert.title, category: parseInt(alert.cat), alertDate: new Date().toISOString() });
+            }
+          }
+        }
+
+        if (recentCities.size > 0) {
+          // Group by severity
+          const groups = { red: [], orange: [], green: [] };
+          for (const [cityName, alert] of recentCities) {
+            const sev = getTitleSeverity(alert.title);
+            groups[sev].push({ name: cityName, title: alert.title, time: alert.alertDate });
+          }
+
+          // ── Compute probabilities for orange cities via server ──
+          let redCenter = null;
+          let centerSource = '';
+          let modelInfo = null;
+
+          if (groups.red.length > 0) {
+            const redCoords = groups.red.map(c => getCityCoords(c.name)).filter(Boolean);
+            redCenter = centroid(redCoords);
+            centerSource = 'red zone center';
+          } else if (groups.orange.length > 0) {
+            const orangeCoords = groups.orange.map(c => getCityCoords(c.name)).filter(Boolean);
+            redCenter = centroid(orangeCoords);
+            centerSource = 'estimated (orange centroid)';
+          }
+
+          let orangeWithProb = [];
+          if (groups.orange.length > 0 && redCenter) {
+            try {
+              const cityNames = groups.orange.map(c => c.name).join(',');
+              const predictUrl = `/api/predict?cities=${encodeURIComponent(cityNames)}&centerLat=${redCenter[0]}&centerLng=${redCenter[1]}&zoneSize=${groups.orange.length}`;
+              const predRes = await fetch(predictUrl).then(r => r.json());
+              modelInfo = predRes.model;
+
+              orangeWithProb = groups.orange.map(c => {
+                const pred = predRes.predictions[c.name];
+                const coords = getCityCoords(c.name);
+                let dist = null;
+                if (coords && redCenter) {
+                  dist = haversineKm(coords[0], coords[1], redCenter[0], redCenter[1]);
+                }
+                const prob = pred ? pred.prob : (dist !== null ? Math.round(distToProb(dist)) : 50);
+                return {
+                  ...c, prob, dist,
+                  mlProb: pred ? pred.ml : null,
+                  distProb: pred ? pred.dist : null,
+                  source: pred ? pred.source : 'distance_curve',
+                  probClass: probToClass(prob)
+                };
+              }).sort((a, b) => b.prob - a.prob);
+            } catch {
+              orangeWithProb = groups.orange.map(c => {
+                const coords = getCityCoords(c.name);
+                let dist = null, prob = 50;
+                if (coords && redCenter) {
+                  dist = haversineKm(coords[0], coords[1], redCenter[0], redCenter[1]);
+                  prob = Math.round(distToProb(dist));
+                }
+                return { ...c, prob, dist, mlProb: null, distProb: prob, source: 'distance_curve', probClass: probToClass(prob) };
+              }).sort((a, b) => b.prob - a.prob);
+            }
+          }
+
+          // ── Status bar ──
+          const redCount = groups.red.length;
+          const orangeCount = groups.orange.length;
+          const greenCount = groups.green.length;
+
+          let statusHtml = '';
+          if (redCount > 0) {
+            statusHtml += `<div class="status-bar active"><div class="pulse red"></div>ירי רקטות וטילים — ${redCount} אזורים</div>`;
+          }
+          if (orangeCount > 0) {
+            const highProb = orangeWithProb.filter(c => c.prob >= 70).length;
+            const medProb = orangeWithProb.filter(c => c.prob >= 30 && c.prob < 70).length;
+            const lowProb = orangeWithProb.filter(c => c.prob < 30).length;
+            statusHtml += `<div class="status-bar warning"><div class="pulse orange"></div>צפויות התרעות — ${orangeCount} אזורים`;
+            if (highProb > 0) statusHtml += ` (${highProb} סיכוי גבוה)`;
+            statusHtml += `</div>`;
+          }
+          if (greenCount > 0) {
+            statusHtml += `<div class="status-bar safe"><div class="pulse green"></div>האירוע הסתיים — ${greenCount} אזורים</div>`;
+          }
+          statusEl.innerHTML = statusHtml;
+
+          // ── City list ──
+          let listHtml = '';
+
+          // Red cities
+          if (groups.red.length > 0) {
+            listHtml += `<div class="alert-group">
+              <div class="alert-type-badge badge-red">ירי רקטות וטילים — היכנסו למרחב מוגן</div>
+              <ul class="city-list">
+                ${groups.red.map(c => {
+                  const city = nameToCity[c.name];
+                  const cd = city ? city.countdown : null;
+                  const cdLabel = cd !== null ? `<span class="countdown-label">${cd}s</span>` : '';
+                  return `<li class="severity-red">${cdLabel}${c.name}</li>`;
+                }).join('')}
+              </ul>
+            </div>`;
+          }
+
+          // Orange cities with probability
+          if (orangeWithProb.length > 0) {
+            listHtml += `<div class="alert-group">
+              <div class="alert-type-badge badge-orange">בדקות הקרובות צפויות התרעות</div>`;
+
+            if (redCenter) {
+              const isML = modelInfo !== null;
+              const srcLabel = isML
+                ? `ML Model (alpha=${modelInfo.alpha.toFixed(2)}, accuracy=${(modelInfo.accuracy * 100).toFixed(0)}%, ${modelInfo.wavesUsed} waves)`
+                : 'Distance curve (collecting data for ML...)';
+              const srcClass = isML ? 'ml' : 'fallback';
+
+              listHtml += `<div class="prob-summary">
+                סיכוי לקבל אדום מחושב לפי מרחק ממוקד הפגיעה
+                <div class="center-info">Center: ${redCenter[0].toFixed(3)}°N, ${redCenter[1].toFixed(3)}°E (${centerSource})</div>
+                <div class="model-indicator ${srcClass}"><span class="dot"></span>${srcLabel}</div>
+              </div>`;
+            }
+
+            listHtml += `<ul class="city-list">
+              ${orangeWithProb.map(c => {
+                const city = nameToCity[c.name];
+                const cd = city ? city.countdown : null;
+                const cdLabel = cd !== null ? `<span class="countdown-label">${cd}s</span>` : '';
+                const distLabel = c.dist !== null ? ` (${c.dist.toFixed(0)}km)` : '';
+                return `<li class="prob-${c.probClass}">
+                  <span class="prob-badge ${c.probClass}">${c.prob}%</span>
+                  ${cdLabel}${c.name}
+                  <span style="font-size:10px;color:#666;float:left;direction:ltr">${c.dist !== null ? c.dist.toFixed(1) + 'km' : ''}</span>
+                </li>`;
+              }).join('')}
+            </ul></div>`;
+          }
+
+          // Green cities
+          if (groups.green.length > 0) {
+            listHtml += `<div class="alert-group">
+              <div class="alert-type-badge badge-green">האירוע הסתיים — ניתן לצאת מהמרחב המוגן</div>
+              <ul class="city-list">
+                ${groups.green.map(c => `<li class="severity-green">${c.name}</li>`).join('')}
+              </ul>
+            </div>`;
+          }
+
+          contentEl.innerHTML = listHtml;
+
+          // ── Draw polygons on map ──
+          const bounds = [];
+
+          // Red polygons
+          for (const c of groups.red) {
+            const style = SEVERITY_STYLES.red;
+            const poly = getPolygonCoords(c.name);
+            if (poly && poly.length > 0) {
+              L.polygon(poly, {
+                color: style.color, fillColor: style.fill,
+                fillOpacity: style.fillOpacity, weight: 2
+              }).addTo(alertLayer).bindPopup(`<b>${c.name}</b><br><span style="color:#f87171">ירי רקטות וטילים — היכנסו למרחב מוגן</span>`);
+              bounds.push(...poly);
+            } else {
+              const coords = getCityCoords(c.name);
+              if (coords) {
+                L.circleMarker(coords, {
+                  radius: 8, color: style.color, fillColor: style.fill, fillOpacity: 0.6
+                }).addTo(alertLayer).bindPopup(`<b>${c.name}</b><br><span style="color:#f87171">ירי רקטות וטילים</span>`);
+                bounds.push(coords);
+              }
+            }
+          }
+
+          // Orange polygons — colored by probability
+          for (const c of orangeWithProb) {
+            const pColor = probToColor(c.prob);
+            const srcLine = c.source === 'blended'
+              ? `<span style="font-size:10px;color:#818cf8">ML: ${c.mlProb}% | Dist: ${c.distProb}%</span>`
+              : `<span style="font-size:10px;color:#888">Distance curve</span>`;
+            const popupHtml = `
+              <div style="text-align:center;min-width:160px">
+                <b>${c.name}</b><br>
+                <span style="font-size:28px;font-weight:800;color:${pColor.color}">${c.prob}%</span><br>
+                <span style="font-size:12px;color:#ccc">${probLabel(c.prob)}</span><br>
+                <span style="font-size:11px;color:#aaa">${c.dist !== null ? c.dist.toFixed(1) + ' km ממוקד הפגיעה' : ''}</span><br>
+                ${srcLine}
+              </div>`;
+
+            const poly = getPolygonCoords(c.name);
+            if (poly && poly.length > 0) {
+              L.polygon(poly, {
+                color: pColor.color, fillColor: pColor.fill,
+                fillOpacity: pColor.opacity, weight: c.prob >= 70 ? 2 : 1
+              }).addTo(alertLayer).bindPopup(popupHtml);
+            } else {
+              const coords = getCityCoords(c.name);
+              if (coords) {
+                L.circleMarker(coords, {
+                  radius: c.prob >= 70 ? 8 : c.prob >= 30 ? 6 : 4,
+                  color: pColor.color, fillColor: pColor.fill,
+                  fillOpacity: pColor.opacity + 0.15
+                }).addTo(alertLayer).bindPopup(popupHtml);
+              }
+            }
+          }
+
+          // Green polygons
+          for (const c of groups.green) {
+            const style = SEVERITY_STYLES.green;
+            const poly = getPolygonCoords(c.name);
+            if (poly && poly.length > 0) {
+              L.polygon(poly, {
+                color: style.color, fillColor: style.fill,
+                fillOpacity: style.fillOpacity, weight: 1
+              }).addTo(alertLayer).bindPopup(`<b>${c.name}</b><br><span style="color:#4ade80">האירוע הסתיים</span>`);
+            } else {
+              const coords = getCityCoords(c.name);
+              if (coords) {
+                L.circleMarker(coords, {
+                  radius: 6, color: style.color, fillColor: style.fill, fillOpacity: 0.3
+                }).addTo(alertLayer).bindPopup(`<b>${c.name}</b><br><span style="color:#4ade80">האירוע הסתיים</span>`);
+              }
+            }
+          }
+
+          // Draw center marker if we have one and there are orange alerts
+          if (redCenter && orangeWithProb.length > 0) {
+            L.circleMarker(redCenter, {
+              radius: 6, color: '#fff', fillColor: '#fff', fillOpacity: 0.9, weight: 2
+            }).addTo(alertLayer).bindPopup(`<b>מוקד הפגיעה המשוער</b><br>${centerSource}`);
+
+            // Distance rings at 15, 30, 50 km
+            [15, 30, 50].forEach(r => {
+              L.circle(redCenter, {
+                radius: r * 1000, color: 'rgba(255,255,255,0.15)',
+                fillColor: 'transparent', weight: 1, dashArray: '6 4'
+              }).addTo(alertLayer);
+            });
+          }
+
+          if (bounds.length > 0 && !selectedCity) {
+            map.fitBounds(bounds, { padding: [80, 80], maxZoom: 12 });
+          } else if (orangeWithProb.length > 0 && !selectedCity) {
+            const orangeCoords = orangeWithProb.map(c => getCityCoords(c.name)).filter(Boolean);
+            if (orangeCoords.length > 0) map.fitBounds(orangeCoords, { padding: [80, 80], maxZoom: 11 });
+          }
+        } else {
+          statusEl.innerHTML = `
+            <div class="status-bar quiet">
+              <div class="pulse green"></div>
+              אין התרעות פעילות
+            </div>`;
+          contentEl.innerHTML = '';
+        }
+      } catch (err) {
+        console.error('Refresh error:', err);
+        document.getElementById('status').innerHTML = `
+          <div class="status-bar" style="background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);">
+            שגיאת חיבור
+          </div>`;
+      }
+    }
+
+    function startCountdown() {
+      countdown = 10;
+      updateCountdownDisplay();
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) { refreshAlerts(); countdown = 10; }
+        updateCountdownDisplay();
+      }, 1000);
+    }
+
+    function updateCountdownDisplay() {
+      document.getElementById('refresh-info').textContent =
+        `Refreshing in ${countdown}s • ${new Date().toLocaleTimeString('he-IL')}`;
+    }
+
+    // ── Init ──
+    (async () => {
+      await loadStaticData();
+      await Promise.all([refreshAlerts(), loadHistory()]);
+      startCountdown();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+services:
+  # Web server - serves the map and API endpoints
+  - type: web
+    name: pikud-alert-map
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: alert-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  # Background collector - continuously gathers alert data and trains ML model
+  - type: worker
+    name: pikud-collector
+    env: node
+    buildCommand: npm install
+    startCommand: node collector.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: alert-data
+      mountPath: /app/data
+      sizeGB: 1

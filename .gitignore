@@ -1,0 +1,15 @@
+node_modules/
+*.log
+.DS_Store
+
+# Local development data (will be regenerated on server)
+collected-alerts.json
+collected-waves.json
+collected-tzevaadom.json
+training-data.json
+
+# Keep model directory structure but ignore large model files locally
+# (they'll be generated on the server)
+model/*.json
+model/model.json
+model/*.bin

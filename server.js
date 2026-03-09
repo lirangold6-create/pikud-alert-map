@@ -4,7 +4,13 @@ const path = require('path');
 const axios = require('axios');
 
 let tf;
-try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
+try { 
+  tf = require('@tensorflow/tfjs'); 
+  // Set backend to CPU for server environment
+  if (tf) tf.setBackend('cpu');
+} catch { 
+  tf = null; 
+}
 
 const PORT = process.env.PORT || 3000;
 

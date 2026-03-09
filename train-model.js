@@ -1,4 +1,6 @@
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
+// Set backend to CPU for server environment
+tf.setBackend('cpu');
 const fs = require('fs');
 const path = require('path');
 

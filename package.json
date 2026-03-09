@@ -2,18 +2,12 @@
   "name": "pikud-live-map",
   "version": "1.0.0",
   "description": "Live alert map with ML-powered red alert probability prediction",
-  "main": "server.js",
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "start": "node server.js",
     "serve": "node server.js",
     "collect": "node collector.js",
     "train": "node train-model.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.0"
+    "@tensorflow/tfjs-node": "^4.22.0"
   }
 }

@@ -1,7 +1,4 @@
-// Note: TensorFlow removed for free tier deployment
-// This script won't work without TensorFlow, but collector will still gather data
-console.log('TensorFlow not available - ML training disabled');
-process.exit(0);
+const tf = require('@tensorflow/tfjs-node');
 const fs = require('fs');
 const path = require('path');
 

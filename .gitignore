@@ -1,15 +1,19 @@
+# Dependencies
 node_modules/
+
+# Logs
 *.log
-.DS_Store
+collector.log
 
-# Local development data (will be regenerated on server)
+# Data files (generated at runtime)
 collected-alerts.json
-collected-waves.json
 collected-tzevaadom.json
+collected-waves.json
 training-data.json
+training-output.txt
 
-# Keep model directory structure but ignore large model files locally
-# (they'll be generated on the server)
-model/*.json
-model/model.json
-model/*.bin
+# Model files (can be regenerated)
+model/
+
+# Package lock (optional - uncomment if you want to track it)
+# package-lock.json

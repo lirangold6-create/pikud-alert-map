@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const axios = require('axios');
+const axios = require(path.join(__dirname, 'pikud-haoref-api/node_modules/axios'));
 
 const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
 const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
@@ -194,7 +194,7 @@ function rebuildAndSaveWaves() {
 function triggerRetrain() {
   if (isRetraining) return;
 
-  const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned > 10);
+  const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned >= 5);
   if (completedWaves.length < 1) {
     console.log(`  [retrain] Not enough completed waves (${completedWaves.length}), skipping`);
     return;
@@ -229,7 +229,7 @@ async function poll() {
     const prevWaves = waves.length;
     rebuildAndSaveWaves();
 
-    const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned > 10);
+    const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned >= 5);
     const totalAlerts = Object.keys(rawAlerts).length;
 
     if (completedWaves.length > 0 && totalAlerts !== lastWaveAlertCount) {

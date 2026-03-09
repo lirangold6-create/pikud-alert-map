@@ -22,21 +22,28 @@
       display: flex; flex-direction: column; overflow: hidden;
     }
 
-    .panel-header { padding: 18px 20px 0; }
+    .panel-header { 
+      padding: 18px 20px 0; 
+      flex-shrink: 0;
+    }
     .panel-header h1 { font-size: 17px; font-weight: 700; }
     .panel-header .subtitle { font-size: 11px; color: #666; margin-top: 2px; }
 
-    /* Tabs */
+    /* Main Navigation Tabs */
     .tabs {
       display: flex; gap: 0; margin: 14px 20px 0; border-radius: 8px;
-      background: rgba(255,255,255,0.05); overflow: hidden;
+      background: rgba(255,255,255,0.08); overflow: hidden;
+      min-height: 36px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.12);
     }
     .tab {
       flex: 1; padding: 8px 0; text-align: center; font-size: 13px;
       font-weight: 600; cursor: pointer; transition: all 0.2s;
-      color: #666; border: none; background: none;
+      color: #888; border: none; background: none;
+      white-space: nowrap;
     }
-    .tab.active { background: rgba(255,255,255,0.1); color: #fff; }
+    .tab.active { background: rgba(255,255,255,0.15); color: #fff; }
     .tab:hover:not(.active) { color: #aaa; }
 
     .tab-content { flex: 1; overflow-y: auto; padding: 14px 20px 16px; }
@@ -86,9 +93,9 @@
     .city-list li.severity-red { background: rgba(239,68,68,0.08); border-right: 3px solid #ef4444; }
     .city-list li.severity-orange { background: rgba(249,115,22,0.06); border-right: 3px solid #f97316; }
     .city-list li.severity-green { background: rgba(34,197,94,0.06); border-right: 3px solid #22c55e; }
-    .city-list li.prob-high { background: rgba(239,68,68,0.12); border-right: 3px solid #ef4444; }
-    .city-list li.prob-med { background: rgba(249,115,22,0.08); border-right: 3px solid #f97316; }
-    .city-list li.prob-low { background: rgba(234,179,8,0.06); border-right: 3px solid #eab308; }
+    .city-list li.prob-high { background: rgba(234,88,12,0.14); border-right: 3px solid #ea580c; }   /* Dark red-orange */
+    .city-list li.prob-med { background: rgba(249,115,22,0.10); border-right: 3px solid #f97316; }   /* Orange */
+    .city-list li.prob-low { background: rgba(251,191,36,0.08); border-right: 3px solid #fbbf24; }   /* Amber */
     .city-list li.prob-none { background: rgba(100,100,100,0.04); border-right: 3px solid #555; }
     .countdown-label {
       font-size: 11px; color: #999; display: inline-block;
@@ -99,9 +106,9 @@
       font-size: 10px; font-weight: 700; margin-left: 6px;
       direction: ltr; vertical-align: middle;
     }
-    .prob-badge.high { background: rgba(239,68,68,0.25); color: #f87171; }
-    .prob-badge.med { background: rgba(249,115,22,0.2); color: #fb923c; }
-    .prob-badge.low { background: rgba(234,179,8,0.15); color: #eab308; }
+    .prob-badge.high { background: rgba(234,88,12,0.28); color: #ea580c; }    /* Dark red-orange */
+    .prob-badge.med { background: rgba(249,115,22,0.22); color: #f97316; }   /* Orange */
+    .prob-badge.low { background: rgba(251,191,36,0.18); color: #fbbf24; }   /* Amber */
     .prob-badge.none { background: rgba(100,100,100,0.15); color: #888; }
     .prob-summary {
       padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;
@@ -155,7 +162,13 @@
       background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
       border-radius: 10px; padding: 14px; margin-bottom: 14px;
     }
-    .selected-city-name { font-size: 16px; font-weight: 700; }
+    .selected-city-name { 
+      font-size: 16px; font-weight: 700; 
+      display: flex; align-items: center; gap: 8px;
+    }
+    .selected-city-name .fav-star {
+      font-size: 20px;
+    }
     .selected-city-zone { font-size: 12px; color: #888; margin-top: 2px; }
     .selected-city-countdown { font-size: 12px; color: #fbbf24; margin-top: 4px; }
 
@@ -253,60 +266,112 @@
     }
     .trend-pct { width: 32px; text-align: left; color: #aaa; font-weight: 600; direction: ltr; }
 
-    .leaderboard-section {
-      margin-bottom: 20px;
-    }
-    .leaderboard-title {
-      font-size: 14px; font-weight: 700; margin-bottom: 10px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .leaderboard-title .badge {
-      display: inline-block; padding: 3px 8px; border-radius: 12px;
-      font-size: 11px; font-weight: 600;
-    }
-    .leaderboard-title .badge.orange { background: rgba(249,115,22,0.2); color: #fb923c; }
-    .leaderboard-title .badge.red { background: rgba(239,68,68,0.2); color: #f87171; }
-    .leaderboard-table {
-      width: 100%; border-collapse: collapse;
-    }
-    .leaderboard-table tr {
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-    }
-    .leaderboard-table tr:hover {
-      background: rgba(255,255,255,0.02); cursor: pointer;
-    }
-    .leaderboard-table td {
-      padding: 10px 8px; font-size: 13px;
-    }
-    .leaderboard-rank {
-      width: 32px; text-align: center; font-weight: 800;
-      color: #666;
-    }
-    .leaderboard-rank.top1 { color: #fbbf24; font-size: 16px; }
-    .leaderboard-rank.top2 { color: #c0c0c0; font-size: 15px; }
-    .leaderboard-rank.top3 { color: #cd7f32; font-size: 14px; }
-    .leaderboard-city {
-      flex: 1;
-    }
-    .leaderboard-count {
-      width: 48px; text-align: left; font-weight: 700;
-      direction: ltr;
-    }
-    .leaderboard-count.orange { color: #fb923c; }
-    .leaderboard-count.red { color: #f87171; }
-    .leaderboard-bar-container {
-      width: 60px; height: 6px; background: rgba(255,255,255,0.05);
-      border-radius: 3px; overflow: hidden;
-    }
-    .leaderboard-bar {
-      height: 100%; border-radius: 3px; transition: width 0.3s;
-    }
-    .leaderboard-bar.orange { background: linear-gradient(90deg, #f97316, #fb923c); }
-    .leaderboard-bar.red { background: linear-gradient(90deg, #ef4444, #f87171); }
-
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+    /* Leaderboard Tab */
+    .leaderboard-controls { margin-bottom: 16px; }
+    .alert-type-toggle {
+      display: flex; gap: 0; margin-bottom: 12px; border-radius: 6px;
+      background: rgba(255,255,255,0.03); overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .type-toggle-btn {
+      flex: 1; padding: 8px 0; text-align: center; font-size: 12px;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
+      color: #666; border: none; background: none;
+      white-space: nowrap;
+    }
+    .type-toggle-btn.active {
+      background: rgba(239,68,68,0.15); color: #f87171;
+    }
+    .type-toggle-btn:not(.active):hover { color: #aaa; }
+
+    .lb-time-btn {
+      flex: 1; padding: 6px 0; text-align: center; font-size: 11px;
+      font-weight: 600; cursor: pointer; transition: all 0.2s;
+      color: #666; border: none; background: none;
+    }
+    .lb-time-btn.active { background: rgba(255,255,255,0.1); color: #fff; }
+    .lb-time-btn:hover:not(.active) { color: #aaa; }
+
+    .leaderboard-loading {
+      text-align: center; padding: 40px 20px; color: #666; font-size: 13px;
+    }
+
+    .leaderboard-list { list-style: none; }
+    .leaderboard-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; border-radius: 8px; margin-bottom: 6px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.2s; cursor: pointer;
+    }
+    .leaderboard-item:hover { 
+      background: rgba(255,255,255,0.06); 
+      border-color: rgba(99,102,241,0.3);
+      transform: translateX(-2px);
+    }
+
+    .lb-rank {
+      font-size: 18px; font-weight: 800; width: 32px; text-align: center;
+      color: #666;
+    }
+    .leaderboard-item:nth-child(1) .lb-rank { color: #fbbf24; }
+    .leaderboard-item:nth-child(2) .lb-rank { color: #94a3b8; }
+    .leaderboard-item:nth-child(3) .lb-rank { color: #cd7f32; }
+
+    .lb-city-info { flex: 1; }
+    .lb-city-name { 
+      font-size: 14px; font-weight: 600; color: #fff;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .lb-city-zone { font-size: 11px; color: #666; margin-top: 2px; }
+
+    .lb-count {
+      font-size: 22px; font-weight: 800; color: #ef4444;
+      min-width: 40px; text-align: center;
+    }
+    .lb-count.orange { color: #f97316; }
+
+    .leaderboard-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 12px; margin-bottom: 12px;
+      background: rgba(255,255,255,0.04); border-radius: 8px;
+      font-size: 12px; color: #888;
+    }
+    .leaderboard-header .total-cities { font-weight: 600; color: #aaa; }
+
+    /* Favorites */
+    .favorites-section {
+      margin-bottom: 14px; padding: 12px; border-radius: 8px;
+      background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.15);
+    }
+    .favorites-header {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; font-weight: 700; color: #818cf8;
+      margin-bottom: 8px; text-transform: uppercase;
+    }
+    .fav-city {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; border-radius: 6px; margin-bottom: 4px;
+      background: rgba(255,255,255,0.03); font-size: 13px;
+    }
+    .fav-star {
+      cursor: pointer; font-size: 14px; transition: all 0.2s;
+      user-select: none;
+    }
+    .fav-star:hover { transform: scale(1.2); }
+    .fav-star.active { color: #fbbf24; }
+    .fav-star.inactive { color: #444; }
+    .fav-city-name { flex: 1; }
+    .fav-status {
+      font-size: 10px; padding: 2px 6px; border-radius: 4px;
+      font-weight: 600;
+    }
+    .fav-status.safe { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .fav-status.warning { background: rgba(249,115,22,0.15); color: #fb923c; }
+    .fav-status.danger { background: rgba(239,68,68,0.15); color: #f87171; }
   </style>
 </head>
 <body>
@@ -320,7 +385,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="live">התרעות חיות</button>
       <button class="tab" data-tab="history">היסטוריה</button>
-      <button class="tab" data-tab="leaderboards">לוחות מובילים</button>
+      <button class="tab" data-tab="leaderboard">טבלת מובילים</button>
     </div>
 
     <div class="tab-content">
@@ -348,16 +413,23 @@
         </div>
       </div>
 
-      <!-- Leaderboards Tab -->
-      <div id="tab-leaderboards" class="tab-pane">
-        <div class="time-selector" id="leaderboard-time-selector">
-          <button class="time-btn" data-days="1">24 שעות</button>
-          <button class="time-btn" data-days="3">3 ימים</button>
-          <button class="time-btn active" data-days="7">שבוע</button>
-          <button class="time-btn" data-days="30">חודש</button>
+      <!-- Leaderboard Tab -->
+      <div id="tab-leaderboard" class="tab-pane">
+        <div style="font-size: 11px; font-weight: 700; color: #888; margin-bottom: 8px; text-transform: uppercase;">סינון</div>
+        <div class="leaderboard-controls">
+          <div class="alert-type-toggle">
+            <button class="type-toggle-btn active" data-type="red">אזעקות (אדום)</button>
+            <button class="type-toggle-btn" data-type="orange">אזהרות (כתום)</button>
+          </div>
+          <div class="time-selector">
+            <button class="lb-time-btn" data-days="1">24 שעות</button>
+            <button class="lb-time-btn" data-days="3">3 ימים</button>
+            <button class="lb-time-btn active" data-days="7">שבוע</button>
+            <button class="lb-time-btn" data-days="30">חודש</button>
+          </div>
         </div>
-        <div id="leaderboards-content">
-          <div class="no-history">טוען...</div>
+        <div id="leaderboard-content">
+          <div class="leaderboard-loading">טוען נתונים...</div>
         </div>
       </div>
     </div>
@@ -372,14 +444,21 @@
       attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
     }).addTo(map);
 
+    // Track user map interactions
+    map.on('dragstart', () => { userMovedMap = true; });
+    map.on('zoomstart', (e) => { 
+      if (e.originalEvent) userMovedMap = true; // Only on manual zoom
+    });
+
     let citiesData = [], polygonsData = {}, nameToCity = {};
     let alertLayer = L.layerGroup().addTo(map);
     let historyLayer = L.layerGroup().addTo(map);
     let selectedCityLayer = L.layerGroup().addTo(map);
-    let refreshTimer = null, countdown = 10;
+    let refreshTimer = null, countdown = 5;
     let fullHistory = [];
     let selectedCity = null;
-    let leaderboardDays = 7;
+    let userMovedMap = false;
+    let favoriteCities = JSON.parse(localStorage.getItem('favoriteCities') || '[]');
 
     // ── Data Loading ──
     async function loadStaticData() {
@@ -398,23 +477,13 @@
       fullHistory = await fetch('/api/history').then(r => r.json());
     }
 
-    // Time window selector for history
-    document.querySelectorAll('#time-selector .time-btn').forEach(btn => {
+    // Time window selector
+    document.querySelectorAll('.time-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#time-selector .time-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         historyDays = parseInt(btn.dataset.days);
         if (selectedCity) selectCity(selectedCity);
-      });
-    });
-
-    // Time window selector for leaderboards
-    document.querySelectorAll('#leaderboard-time-selector .time-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#leaderboard-time-selector .time-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        leaderboardDays = parseInt(btn.dataset.days);
-        loadLeaderboards();
       });
     });
 
@@ -504,10 +573,11 @@
     }
 
     function probToColor(prob) {
-      if (prob >= 70) return { color: '#ef4444', fill: '#ef4444', opacity: 0.30 + prob / 400 };
-      if (prob >= 30) return { color: '#f97316', fill: '#f97316', opacity: 0.15 + prob / 500 };
-      if (prob >= 5) return { color: '#eab308', fill: '#eab308', opacity: 0.08 + prob / 800 };
-      return { color: '#666', fill: '#666', opacity: 0.05 };
+      // Progressive color scale: Yellow → Orange → Dark Orange (never pure red)
+      if (prob >= 70) return { color: '#ea580c', fill: '#ea580c', opacity: 0.38 + prob / 250 };  // Dark red-orange
+      if (prob >= 30) return { color: '#f97316', fill: '#f97316', opacity: 0.22 + prob / 350 };  // Orange
+      if (prob >= 5) return { color: '#fbbf24', fill: '#fbbf24', opacity: 0.12 + prob / 600 };   // Amber/Yellow
+      return { color: '#888', fill: '#888', opacity: 0.06 };  // Gray
     }
 
     function probLabel(prob) {
@@ -518,6 +588,29 @@
       return 'כמעט אפס';
     }
 
+    // ── Favorites ──
+    function toggleFavorite(cityName) {
+      const idx = favoriteCities.indexOf(cityName);
+      if (idx > -1) {
+        favoriteCities.splice(idx, 1);
+      } else {
+        favoriteCities.push(cityName);
+      }
+      localStorage.setItem('favoriteCities', JSON.stringify(favoriteCities));
+      
+      // Refresh live alerts tab
+      refreshAlerts();
+      
+      // If we're in history tab and this is the selected city, refresh its view
+      if (selectedCity === cityName) {
+        selectCity(cityName);
+      }
+    }
+
+    function isFavorite(cityName) {
+      return favoriteCities.includes(cityName);
+    }
+
     // ── Tabs ──
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -526,7 +619,7 @@
         tab.classList.add('active');
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
         if (tab.dataset.tab === 'history' && fullHistory.length === 0) loadHistory();
-        if (tab.dataset.tab === 'leaderboards') loadLeaderboards();
+        if (tab.dataset.tab === 'leaderboard') loadLeaderboard();
       });
     });
 
@@ -541,11 +634,12 @@
         .filter(c => c.name.includes(q) || (c.name_en && c.name_en.toLowerCase().includes(q.toLowerCase())))
         .slice(0, 30);
       if (matches.length === 0) { dropdown.classList.remove('open'); return; }
-      dropdown.innerHTML = matches.map(c =>
-        `<div class="city-option" data-name="${c.name}">
-          ${c.name} <span class="zone-label">${c.zone || ''}</span>
-        </div>`
-      ).join('');
+      dropdown.innerHTML = matches.map(c => {
+        const star = isFavorite(c.name) ? '⭐ ' : '';
+        return `<div class="city-option" data-name="${c.name}">
+          ${star}${c.name} <span class="zone-label">${c.zone || ''}</span>
+        </div>`;
+      }).join('');
       dropdown.classList.add('open');
       dropdown.querySelectorAll('.city-option').forEach(opt => {
         opt.addEventListener('click', () => selectCity(opt.dataset.name));
@@ -568,13 +662,32 @@
       const content = document.getElementById('history-content');
       content.innerHTML = '<div class="no-history">טוען...</div>';
 
-      // Fetch full history from the new API
+      // Try to use collected data first (same as leaderboard)
       try {
-        const res = await fetch(`/api/full-history?mode=3&city=${encodeURIComponent(cityName)}`);
-        const data = await res.json();
-        renderCityHistory(cityName, data);
-      } catch {
-        // Fallback to collected data
+        const res = await fetch(`/api/collected?city=${encodeURIComponent(cityName)}&days=${historyDays}`);
+        const collectedData = await res.json();
+        
+        if (collectedData && collectedData.length > 0) {
+          // Use collected data
+          const data = collectedData.map(h => ({
+            data: h.data, 
+            date: h.alertDate.split(' ')[0].split('-').reverse().join('.'),
+            time: h.alertDate.split(' ')[1], 
+            category: h.category, 
+            category_desc: h.category_desc || h.title,
+            title: h.title,
+            alertDate: h.alertDate
+          }));
+          renderCityHistory(cityName, data);
+        } else {
+          // Fallback to full history API
+          const res2 = await fetch(`/api/full-history?mode=3&city=${encodeURIComponent(cityName)}`);
+          const data = await res2.json();
+          renderCityHistory(cityName, data);
+        }
+      } catch (err) {
+        console.error('History fetch error:', err);
+        // Last resort fallback
         if (fullHistory.length === 0) await loadHistory();
         const data = fullHistory.filter(h => h.data === cityName).map(h => ({
           data: h.data, date: h.alertDate.split(' ')[0].split('-').reverse().join('.'),
@@ -680,9 +793,15 @@
 
       const convColor = convRate >= 70 ? '#f87171' : convRate >= 40 ? '#fb923c' : '#4ade80';
 
+      const star = isFavorite(cityName) ? '⭐' : '☆';
+      const starClass = isFavorite(cityName) ? 'active' : 'inactive';
+      
       let html = `
         <div class="selected-city-info">
-          <div class="selected-city-name">${city.name}</div>
+          <div class="selected-city-name">
+            <span class="fav-star ${starClass}" onclick="toggleFavorite('${cityName.replace(/'/g, "\\'")}');">${star}</span>
+            ${city.name}
+          </div>
           <div class="selected-city-zone">${city.zone || ''} ${city.name_en ? '• ' + city.name_en : ''}</div>
           ${city.countdown ? `<div class="selected-city-countdown">⏱ ${city.countdown} שניות להיכנס למרחב מוגן</div>` : ''}
           <button class="clear-btn" onclick="clearSelection()">נקה בחירה</button>
@@ -772,106 +891,6 @@
       map.setView([31.5, 34.9], 8);
     }
 
-    // ── Leaderboards ──
-    async function loadLeaderboards() {
-      const content = document.getElementById('leaderboards-content');
-      content.innerHTML = '<div class="no-history">טוען...</div>';
-
-      try {
-        const res = await fetch(`/api/leaderboards?days=${leaderboardDays}`);
-        const data = await res.json();
-        renderLeaderboards(data);
-      } catch (err) {
-        content.innerHTML = '<div class="no-history">שגיאה בטעינת הנתונים</div>';
-      }
-    }
-
-    function renderLeaderboards(data) {
-      const content = document.getElementById('leaderboards-content');
-      
-      if (data.orange.length === 0 && data.red.length === 0) {
-        content.innerHTML = '<div class="no-history">אין נתונים לתקופה זו</div>';
-        return;
-      }
-
-      let html = '';
-
-      // Orange alerts leaderboard
-      if (data.orange.length > 0) {
-        const maxOrange = data.orange[0].orange;
-        html += `
-          <div class="leaderboard-section">
-            <div class="leaderboard-title">
-              <span class="badge orange">כתום</span>
-              ערים עם הכי הרבה אזהרות (בדקות הקרובות)
-            </div>
-            <table class="leaderboard-table">
-              ${data.orange.map((entry, i) => {
-                const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
-                const rankSymbol = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
-                const barWidth = (entry.orange / maxOrange * 100).toFixed(1);
-                return `
-                  <tr onclick="jumpToCity('${entry.city}')">
-                    <td class="leaderboard-rank ${rankClass}">${rankSymbol}</td>
-                    <td class="leaderboard-city">${entry.city}</td>
-                    <td class="leaderboard-count orange">${entry.orange}</td>
-                    <td>
-                      <div class="leaderboard-bar-container">
-                        <div class="leaderboard-bar orange" style="width: ${barWidth}%"></div>
-                      </div>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </table>
-          </div>
-        `;
-      }
-
-      // Red alerts leaderboard
-      if (data.red.length > 0) {
-        const maxRed = data.red[0].red;
-        html += `
-          <div class="leaderboard-section">
-            <div class="leaderboard-title">
-              <span class="badge red">אדום</span>
-              ערים עם הכי הרבה אזעקות (ירי רקטות)
-            </div>
-            <table class="leaderboard-table">
-              ${data.red.map((entry, i) => {
-                const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
-                const rankSymbol = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
-                const barWidth = (entry.red / maxRed * 100).toFixed(1);
-                return `
-                  <tr onclick="jumpToCity('${entry.city}')">
-                    <td class="leaderboard-rank ${rankClass}">${rankSymbol}</td>
-                    <td class="leaderboard-city">${entry.city}</td>
-                    <td class="leaderboard-count red">${entry.red}</td>
-                    <td>
-                      <div class="leaderboard-bar-container">
-                        <div class="leaderboard-bar red" style="width: ${barWidth}%"></div>
-                      </div>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </table>
-          </div>
-        `;
-      }
-
-      content.innerHTML = html;
-    }
-
-    function jumpToCity(cityName) {
-      // Switch to history tab and select the city
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      document.querySelector('[data-tab="history"]').classList.add('active');
-      document.getElementById('tab-history').classList.add('active');
-      selectCity(cityName);
-    }
-
     // ── Live Alerts ──
     async function refreshAlerts() {
       try {
@@ -923,14 +942,12 @@
           let centerSource = '';
           let modelInfo = null;
 
-          if (groups.red.length > 0) {
-            const redCoords = groups.red.map(c => getCityCoords(c.name)).filter(Boolean);
-            redCenter = centroid(redCoords);
-            centerSource = 'red zone center';
-          } else if (groups.orange.length > 0) {
+          // Always use orange centroid for orange alert probabilities
+          // (red alerts might be from a different/older wave)
+          if (groups.orange.length > 0) {
             const orangeCoords = groups.orange.map(c => getCityCoords(c.name)).filter(Boolean);
             redCenter = centroid(orangeCoords);
-            centerSource = 'estimated (orange centroid)';
+            centerSource = 'estimated from warning zone';
           }
 
           let orangeWithProb = [];
@@ -995,6 +1012,33 @@
           // ── City list ──
           let listHtml = '';
 
+          // Favorites section (if any favorites exist)
+          if (favoriteCities.length > 0) {
+            listHtml += '<div class="favorites-section"><div class="favorites-header"><span>⭐ ערים מועדפות</span><span>' + favoriteCities.length + '</span></div>';
+            
+            for (const favCity of favoriteCities) {
+              const inRed = groups.red.find(c => c.name === favCity);
+              const inOrange = orangeWithProb.find(c => c.name === favCity);
+              const inGreen = groups.green.find(c => c.name === favCity);
+              
+              let statusHtml = '<span class="fav-status safe">בטוח</span>';
+              if (inRed) {
+                statusHtml = '<span class="fav-status danger">אדום 🚨</span>';
+              } else if (inOrange) {
+                statusHtml = `<span class="fav-status warning">${inOrange.prob}% סיכוי</span>`;
+              } else if (inGreen) {
+                statusHtml = '<span class="fav-status safe">הסתיים ✓</span>';
+              }
+              
+              listHtml += `<div class="fav-city">
+                <span class="fav-star active" role="button" tabindex="0" aria-label="הסר ממועדפים ${favCity}" onclick="toggleFavorite('${favCity.replace(/'/g, "\\'")}')">⭐</span>
+                <span class="fav-city-name">${favCity}</span>
+                ${statusHtml}
+              </div>`;
+            }
+            listHtml += '</div>';
+          }
+
           // Red cities
           if (groups.red.length > 0) {
             listHtml += `<div class="alert-group">
@@ -1004,7 +1048,11 @@
                   const city = nameToCity[c.name];
                   const cd = city ? city.countdown : null;
                   const cdLabel = cd !== null ? `<span class="countdown-label">${cd}s</span>` : '';
-                  return `<li class="severity-red">${cdLabel}${c.name}</li>`;
+                  const star = isFavorite(c.name) ? '⭐' : '☆';
+                  return `<li class="severity-red">
+                    <span class="fav-star ${isFavorite(c.name) ? 'active' : 'inactive'}" role="button" tabindex="0" aria-label="הוסף למועדפים ${c.name}" onclick="toggleFavorite('${c.name.replace(/'/g, "\\'")}'); event.stopPropagation();">${star}</span>
+                    ${cdLabel}${c.name}
+                  </li>`;
                 }).join('')}
               </ul>
             </div>`;
@@ -1034,8 +1082,9 @@
                 const city = nameToCity[c.name];
                 const cd = city ? city.countdown : null;
                 const cdLabel = cd !== null ? `<span class="countdown-label">${cd}s</span>` : '';
-                const distLabel = c.dist !== null ? ` (${c.dist.toFixed(0)}km)` : '';
+                const star = isFavorite(c.name) ? '⭐' : '☆';
                 return `<li class="prob-${c.probClass}">
+                  <span class="fav-star ${isFavorite(c.name) ? 'active' : 'inactive'}" role="button" tabindex="0" aria-label="הוסף למועדפים ${c.name}" onclick="toggleFavorite('${c.name.replace(/'/g, "\\'")}'); event.stopPropagation();">${star}</span>
                   <span class="prob-badge ${c.probClass}">${c.prob}%</span>
                   ${cdLabel}${c.name}
                   <span style="font-size:10px;color:#666;float:left;direction:ltr">${c.dist !== null ? c.dist.toFixed(1) + 'km' : ''}</span>
@@ -1049,7 +1098,13 @@
             listHtml += `<div class="alert-group">
               <div class="alert-type-badge badge-green">האירוע הסתיים — ניתן לצאת מהמרחב המוגן</div>
               <ul class="city-list">
-                ${groups.green.map(c => `<li class="severity-green">${c.name}</li>`).join('')}
+                ${groups.green.map(c => {
+                  const star = isFavorite(c.name) ? '⭐' : '☆';
+                  return `<li class="severity-green">
+                    <span class="fav-star ${isFavorite(c.name) ? 'active' : 'inactive'}" role="button" tabindex="0" aria-label="הוסף למועדפים ${c.name}" onclick="toggleFavorite('${c.name.replace(/'/g, "\\'")}'); event.stopPropagation();">${star}</span>
+                    ${c.name}
+                  </li>`;
+                }).join('')}
               </ul>
             </div>`;
           }
@@ -1147,11 +1202,14 @@
             });
           }
 
-          if (bounds.length > 0 && !selectedCity) {
-            map.fitBounds(bounds, { padding: [80, 80], maxZoom: 12 });
-          } else if (orangeWithProb.length > 0 && !selectedCity) {
-            const orangeCoords = orangeWithProb.map(c => getCityCoords(c.name)).filter(Boolean);
-            if (orangeCoords.length > 0) map.fitBounds(orangeCoords, { padding: [80, 80], maxZoom: 11 });
+          // Only auto-fit map if user hasn't manually moved it
+          if (!userMovedMap && !selectedCity) {
+            if (bounds.length > 0) {
+              map.fitBounds(bounds, { padding: [80, 80], maxZoom: 12 });
+            } else if (orangeWithProb.length > 0) {
+              const orangeCoords = orangeWithProb.map(c => getCityCoords(c.name)).filter(Boolean);
+              if (orangeCoords.length > 0) map.fitBounds(orangeCoords, { padding: [80, 80], maxZoom: 11 });
+            }
           }
         } else {
           statusEl.innerHTML = `
@@ -1159,7 +1217,21 @@
               <div class="pulse green"></div>
               אין התרעות פעילות
             </div>`;
-          contentEl.innerHTML = '';
+          
+          // Show favorites even when no alerts
+          let listHtml = '';
+          if (favoriteCities.length > 0) {
+            listHtml += '<div class="favorites-section"><div class="favorites-header"><span>⭐ ערים מועדפות</span><span>' + favoriteCities.length + '</span></div>';
+            for (const favCity of favoriteCities) {
+              listHtml += `<div class="fav-city">
+                <span class="fav-star active" role="button" tabindex="0" aria-label="הסר ממועדפים ${favCity}" onclick="toggleFavorite('${favCity.replace(/'/g, "\\'")}')">⭐</span>
+                <span class="fav-city-name">${favCity}</span>
+                <span class="fav-status safe">בטוח</span>
+              </div>`;
+            }
+            listHtml += '</div>';
+          }
+          contentEl.innerHTML = listHtml;
         }
       } catch (err) {
         console.error('Refresh error:', err);
@@ -1171,12 +1243,12 @@
     }
 
     function startCountdown() {
-      countdown = 10;
+      countdown = 5;
       updateCountdownDisplay();
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(() => {
         countdown--;
-        if (countdown <= 0) { refreshAlerts(); countdown = 10; }
+        if (countdown <= 0) { refreshAlerts(); countdown = 5; }
         updateCountdownDisplay();
       }, 1000);
     }
@@ -1184,6 +1256,106 @@
     function updateCountdownDisplay() {
       document.getElementById('refresh-info').textContent =
         `Refreshing in ${countdown}s • ${new Date().toLocaleTimeString('he-IL')}`;
+    }
+
+    // ── Leaderboard ──
+    let leaderboardType = 'red';
+    let leaderboardDays = 7;
+
+    document.querySelectorAll('.type-toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.type-toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        leaderboardType = btn.dataset.type;
+        if (btn.dataset.type === 'orange') {
+          btn.style.background = 'rgba(249,115,22,0.15)';
+          btn.style.color = '#fb923c';
+        } else {
+          btn.style.background = 'rgba(239,68,68,0.15)';
+          btn.style.color = '#f87171';
+        }
+        loadLeaderboard();
+      });
+    });
+
+    document.querySelectorAll('.lb-time-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.lb-time-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        leaderboardDays = parseInt(btn.dataset.days);
+        loadLeaderboard();
+      });
+    });
+
+    async function loadLeaderboard() {
+      const content = document.getElementById('leaderboard-content');
+      content.innerHTML = '<div class="leaderboard-loading">טוען נתונים...</div>';
+
+      try {
+        const data = await fetch(`/api/leaderboard?type=${leaderboardType}&days=${leaderboardDays}`).then(r => r.json());
+        renderLeaderboard(data);
+      } catch (err) {
+        console.error('Leaderboard error:', err);
+        content.innerHTML = '<div class="leaderboard-loading">שגיאה בטעינת נתונים</div>';
+      }
+    }
+
+    function renderLeaderboard(data) {
+      const content = document.getElementById('leaderboard-content');
+      
+      if (!data.leaderboard || data.leaderboard.length === 0) {
+        content.innerHTML = '<div class="leaderboard-loading">אין נתונים לתקופה זו</div>';
+        return;
+      }
+
+      const typeLabel = leaderboardType === 'red' ? 'אזעקות (אדום)' : 'אזהרות (כתום)';
+      const totalAlerts = data.leaderboard.reduce((sum, item) => sum + item.count, 0);
+
+      let html = `
+        <div class="leaderboard-header">
+          <span>סה"כ ${typeLabel}: <span class="total-cities">${totalAlerts}</span></span>
+          <span>${data.leaderboard.length} ערים</span>
+        </div>
+        <ul class="leaderboard-list">`;
+
+      data.leaderboard.forEach((item, idx) => {
+        const city = nameToCity[item.city];
+        const zone = city ? city.zone : '';
+        const star = isFavorite(item.city) ? '⭐' : '☆';
+        const starClass = isFavorite(item.city) ? 'active' : 'inactive';
+        html += `
+          <li class="leaderboard-item" onclick="viewCityHistory('${item.city.replace(/'/g, "\\'")}')">
+            <div class="lb-rank">${idx + 1}</div>
+            <div class="lb-city-info">
+              <div class="lb-city-name">
+                <span class="fav-star ${starClass}" onclick="event.stopPropagation(); toggleFavorite('${item.city.replace(/'/g, "\\'")}');">${star}</span>
+                ${item.city}
+              </div>
+              ${zone ? `<div class="lb-city-zone">${zone}</div>` : ''}
+            </div>
+            <div class="lb-count ${leaderboardType}">${item.count}</div>
+          </li>`;
+      });
+
+      html += '</ul>';
+      content.innerHTML = html;
+    }
+
+    function viewCityHistory(cityName) {
+      // Sync history time window with leaderboard time window
+      historyDays = leaderboardDays;
+      document.querySelectorAll('.time-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.days) === historyDays);
+      });
+
+      // Switch to history tab
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      document.querySelector('[data-tab="history"]').classList.add('active');
+      document.getElementById('tab-history').classList.add('active');
+      
+      searchInput.value = cityName;
+      selectCity(cityName);
     }
 
     // ── Init ──

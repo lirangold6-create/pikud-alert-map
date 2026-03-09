@@ -1,12 +1,12 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+const axios = require(path.join(__dirname, 'pikud-haoref-api/node_modules/axios'));
 
-// ML disabled for free tier deployment
-let tf = null;
+let tf;
+try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 const ALERTS_URL = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
 const HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
@@ -304,6 +304,59 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/leaderboard') {
+    const type = url.searchParams.get('type') || 'red';
+    const days = parseInt(url.searchParams.get('days')) || 7;
+    const collectedFile = path.join(__dirname, 'collected-alerts.json');
+    
+    if (!fs.existsSync(collectedFile)) {
+      sendJson(res, { leaderboard: [] });
+      return;
+    }
+
+    try {
+      const raw = JSON.parse(fs.readFileSync(collectedFile, 'utf8'));
+      const all = Object.values(raw);
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+      
+      const isAlertRed = (desc) => {
+        if (!desc) return false;
+        return desc.includes('ירי רקטות וטילים') && !desc.includes('האירוע הסתיים');
+      };
+      
+      const isAlertOrange = (desc) => {
+        if (!desc) return false;
+        return desc.includes('בדקות הקרובות') || desc.includes('צפויות להתקבל') || desc.includes('expected alert');
+      };
+
+      const filtered = all.filter(a => {
+        if (a.alertDate < cutoff) return false;
+        const desc = a.category_desc || a.title || '';
+        if (type === 'red') return isAlertRed(desc);
+        if (type === 'orange') return isAlertOrange(desc);
+        return false;
+      });
+
+      const counts = {};
+      filtered.forEach(alert => {
+        const cityName = alert.data;
+        if (!cityName) return;
+        counts[cityName] = (counts[cityName] || 0) + 1;
+      });
+
+      const leaderboard = Object.entries(counts)
+        .map(([city, count]) => ({ city, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 50);
+
+      sendJson(res, { leaderboard, type, days });
+    } catch (err) {
+      console.error('Leaderboard error:', err);
+      sendJson(res, { leaderboard: [], error: err.message });
+    }
+    return;
+  }
+
   if (url.pathname === '/api/predict') {
     const citiesParam = url.searchParams.get('cities');
     const centerLat = parseFloat(url.searchParams.get('centerLat'));
@@ -327,44 +380,6 @@ const server = http.createServer(async (req, res) => {
       metrics: mlMetrics,
       alpha: mlMetrics ? mlMetrics.alpha : 0
     });
-    return;
-  }
-
-  if (url.pathname === '/api/leaderboards') {
-    const collectedFile = path.join(__dirname, 'collected-alerts.json');
-    if (!fs.existsSync(collectedFile)) {
-      sendJson(res, { orange: [], red: [] });
-      return;
-    }
-    
-    const days = parseInt(url.searchParams.get('days')) || 7;
-    const cutoff = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
-    
-    const raw = JSON.parse(fs.readFileSync(collectedFile, 'utf8'));
-    const alerts = Object.values(raw).filter(a => a.alertDate >= cutoff);
-    
-    const cityStats = {};
-    
-    for (const alert of alerts) {
-      const city = alert.data;
-      if (!cityStats[city]) {
-        cityStats[city] = { city, orange: 0, red: 0, total: 0 };
-      }
-      
-      const title = alert.title || '';
-      if (title.includes('בדקות הקרובות')) {
-        cityStats[city].orange++;
-      } else if (title.includes('ירי רקטות וטילים') && !title.includes('האירוע הסתיים')) {
-        cityStats[city].red++;
-      }
-      cityStats[city].total++;
-    }
-    
-    const cities = Object.values(cityStats);
-    const orangeLeaderboard = cities.filter(c => c.orange > 0).sort((a, b) => b.orange - a.orange).slice(0, 20);
-    const redLeaderboard = cities.filter(c => c.red > 0).sort((a, b) => b.red - a.red).slice(0, 20);
-    
-    sendJson(res, { orange: orangeLeaderboard, red: redLeaderboard });
     return;
   }
 

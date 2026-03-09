@@ -12,8 +12,8 @@ collected-waves.json
 training-data.json
 training-output.txt
 
-# Model files (can be regenerated)
-model/
+# Model files - INCLUDED in main branch for deployment
+# model/
 
 # Package lock (optional - uncomment if you want to track it)
 # package-lock.json

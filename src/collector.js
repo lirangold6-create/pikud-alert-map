@@ -1,30 +1,24 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const axios = require(path.join(__dirname, 'pikud-haoref-api/node_modules/axios'));
+const axios = require('axios');
 
-const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-const FULL_HISTORY_URL = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&mode=1';
-const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
+const config = require('../lib/config');
+const { buildWaves, isWaveComplete } = require('../lib/utils/waves');
+const { alertKey } = require('../lib/utils/alerts');
 
-const OREF_HEADERS = {
-  'Referer': 'https://www.oref.org.il/',
-  'X-Requested-With': 'XMLHttpRequest',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
+const OREF_HISTORY_URL = config.OREF_HISTORY_URL;
+const FULL_HISTORY_URL = config.OREF_FULL_HISTORY_URL + '&mode=1';
+const TZEVAADOM_URL = config.TZEVAADOM_URL;
+const OREF_HEADERS = config.OREF_HEADERS;
+const FULL_HISTORY_HEADERS = config.OREF_HISTORY_HEADERS;
 
-const FULL_HISTORY_HEADERS = {
-  'Referer': 'https://alerts-history.oref.org.il/12481-he/Pakar.aspx',
-  'X-Requested-With': 'XMLHttpRequest',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
+const RAW_FILE = path.join(__dirname, '..', config.PATHS.COLLECTED_ALERTS);
+const WAVES_FILE = path.join(__dirname, '..', config.PATHS.COLLECTED_WAVES);
+const TZEVAADOM_FILE = path.join(__dirname, '..', config.PATHS.COLLECTED_TZEVAADOM);
 
-const RAW_FILE = path.join(__dirname, 'collected-alerts.json');
-const WAVES_FILE = path.join(__dirname, 'collected-waves.json');
-const TZEVAADOM_FILE = path.join(__dirname, 'collected-tzevaadom.json');
-
-const POLL_INTERVAL = 30000;
-const WAVE_GAP_MS = 20 * 60 * 1000;
+const POLL_INTERVAL = config.POLL_INTERVAL;
+const MIN_WAVE_CITIES = config.MIN_WAVE_CITIES;
 
 // ── State ──
 let rawAlerts = {};
@@ -44,69 +38,6 @@ if (fs.existsSync(TZEVAADOM_FILE)) {
 
 let lastWaveAlertCount = 0;
 let isRetraining = false;
-
-function alertKey(a) {
-  return `${a.alertDate}|${a.data}|${a.title}`;
-}
-
-// ── Group raw alerts into waves ──
-function buildWaves(alerts) {
-  const parsed = alerts
-    .map(a => ({ ...a, time: new Date(a.alertDate.replace(' ', 'T')).getTime() }))
-    .sort((a, b) => a.time - b.time);
-
-  if (parsed.length === 0) return [];
-
-  const result = [];
-  let current = [parsed[0]];
-
-  for (let i = 1; i < parsed.length; i++) {
-    if (parsed[i].time - parsed[i - 1].time > WAVE_GAP_MS) {
-      result.push(processWave(current));
-      current = [];
-    }
-    current.push(parsed[i]);
-  }
-  if (current.length > 0) result.push(processWave(current));
-
-  return result;
-}
-
-function isOrange(title) { return title.includes('בדקות הקרובות'); }
-function isRed(title) { return title.includes('ירי רקטות וטילים') && !title.includes('האירוע הסתיים'); }
-function isGreen(title) {
-  return title.includes('האירוע הסתיים') || title.includes('ניתן לצאת');
-}
-
-function processWave(alerts) {
-  const cityMap = {};
-  for (const a of alerts) {
-    if (!cityMap[a.data]) cityMap[a.data] = { orange: false, red: false, green: false, times: {} };
-    const entry = cityMap[a.data];
-    if (isOrange(a.title)) { entry.orange = true; entry.times.orange = a.alertDate; }
-    if (isRed(a.title)) { entry.red = true; entry.times.red = a.alertDate; }
-    if (isGreen(a.title)) { entry.green = true; entry.times.green = a.alertDate; }
-  }
-
-  const startTime = alerts[0].alertDate;
-  const endTime = alerts[alerts.length - 1].alertDate;
-  const orangeCities = Object.keys(cityMap).filter(c => cityMap[c].orange || cityMap[c].green);
-  const redCities = Object.keys(cityMap).filter(c => cityMap[c].red);
-
-  return {
-    id: `wave_${alerts[0].time}`,
-    startTime,
-    endTime,
-    alertCount: alerts.length,
-    cities: cityMap,
-    summary: {
-      warned: orangeCities.length,
-      red: redCities.length,
-      conversionRate: orangeCities.length > 0 ? (redCities.length / orangeCities.length) : 0,
-      hasGreen: Object.values(cityMap).some(c => c.green)
-    }
-  };
-}
 
 // ── Polling ──
 async function pollOref() {
@@ -194,7 +125,7 @@ function rebuildAndSaveWaves() {
 function triggerRetrain() {
   if (isRetraining) return;
 
-  const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned >= 5);
+  const completedWaves = waves.filter(w => isWaveComplete(w, MIN_WAVE_CITIES));
   if (completedWaves.length < 1) {
     console.log(`  [retrain] Not enough completed waves (${completedWaves.length}), skipping`);
     return;
@@ -229,7 +160,7 @@ async function poll() {
     const prevWaves = waves.length;
     rebuildAndSaveWaves();
 
-    const completedWaves = waves.filter(w => w.summary.hasGreen && w.summary.warned >= 5);
+    const completedWaves = waves.filter(w => isWaveComplete(w, MIN_WAVE_CITIES));
     const totalAlerts = Object.keys(rawAlerts).length;
 
     if (completedWaves.length > 0 && totalAlerts !== lastWaveAlertCount) {

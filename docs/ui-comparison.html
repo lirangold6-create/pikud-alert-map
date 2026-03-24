@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-Missile UI Comparison</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      padding: 40px;
+    }
+    
+    h1 {
+      font-size: 32px;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ef4444, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+      color: #888;
+      margin-bottom: 40px;
+    }
+    
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      max-width: 1400px;
+    }
+    
+    .scenario {
+      background: rgba(20, 20, 20, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+    }
+    
+    .scenario h2 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    
+    .scenario-desc {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 24px;
+    }
+    
+    .wave-alert-card {
+      background: linear-gradient(135deg, rgba(251, 146, 60, 0.12), rgba(234, 88, 12, 0.08));
+      border: 1px solid rgba(251, 146, 60, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    
+    .wave-alert-card.multi-missile {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(220, 38, 38, 0.12));
+      border: 2px solid rgba(239, 68, 68, 0.5);
+      animation: pulse-warning 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse-warning {
+      0%, 100% { box-shadow: 0 6px 20px rgba(239, 68, 68, 0.25); }
+      50% { box-shadow: 0 6px 30px rgba(239, 68, 68, 0.4); }
+    }
+    
+    .wave-alert-card.cluster-card {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(109, 40, 217, 0.08));
+      border-left: 4px solid #8b5cf6;
+      margin-bottom: 10px;
+      padding: 14px;
+    }
+    
+    .wave-alert-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(251, 146, 60, 0.2);
+    }
+    
+    .wave-alert-icon {
+      font-size: 24px;
+      line-height: 1;
+    }
+    
+    .wave-alert-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fb923c;
+      flex: 1;
+    }
+    
+    .wave-alert-subtitle {
+      font-size: 12px;
+      color: #fca5a5;
+      font-weight: 600;
+      text-align: center;
+      margin-top: -8px;
+      padding-bottom: 8px;
+    }
+    
+    .wave-alert-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .wave-stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border-left: 3px solid #fb923c;
+    }
+    
+    .wave-stat-label {
+      font-size: 12px;
+      color: #999;
+      font-weight: 500;
+    }
+    
+    .wave-stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .wave-target {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px dashed rgba(239, 68, 68, 0.4);
+      border-radius: 8px;
+      margin-top: 6px;
+    }
+    
+    .wave-target-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #fb923c;
+    }
+    
+    .wave-target-coords {
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      color: #fca5a5;
+    }
+    
+    .map-preview {
+      background: rgba(10, 10, 10, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+      text-align: center;
+    }
+    
+    .marker-legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 16px;
+    }
+    
+    .marker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #888;
+    }
+    
+    .marker-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Multi-Missile UI Visualization</h1>
+  <p class="subtitle">Adaptive interface that shows separate timers and centers for each detected missile cluster</p>
+  
+  <div class="comparison">
+    <!-- Single Missile -->
+    <div class="scenario">
+      <h2>🚀 Single-Missile Attack</h2>
+      <p class="scenario-desc">One missile hitting a concentrated area (e.g., 14:39 Jerusalem)</p>
+      
+      <div class="wave-alert-card">
+        <div class="wave-alert-header">
+          <div class="wave-alert-icon">🚀</div>
+          <div class="wave-alert-title">איום פעיל - גל התקפה</div>
+        </div>
+        <div class="wave-alert-body">
+          <div class="wave-stat">
+            <span class="wave-stat-label">איזור התרעה</span>
+            <span class="wave-stat-value">142 ישובים</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">זמן צפוי לאזעקה</span>
+            <span class="wave-stat-value">~8:30 דקות</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">רמת איום</span>
+            <span class="wave-stat-value" style="color:#ef4444">גבוה (72%)</span>
+          </div>
+          <div class="wave-target">
+            <span class="wave-target-label">🎯 מוקד צפוי:</span>
+            <span class="wave-target-coords">31.780, 35.220</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="map-preview">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px">תצוגת מפה</div>
+        <div style="font-size:48px;margin:20px 0">🎯</div>
+        <div class="marker-legend">
+          <div class="marker-item">
+            <div class="marker-dot" style="background:#ef4444"></div>
+            <span>מוקד אחד</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Multi Missile -->
+    <div class="scenario">
+      <h2>⚠️ Multi-Missile Attack</h2>
+      <p class="scenario-desc">Two separated missiles (e.g., 16:25 Central + South, 68km apart)</p>
+      
+      <div class="wave-alert-card multi-missile">
+        <div class="wave-alert-header">
+          <div class="wave-alert-icon">⚠️</div>
+          <div class="wave-alert-title">איום מרובה - 2 טילים זוהו</div>
+        </div>
+        <div class="wave-alert-subtitle">
+          מרחק בין מוקדים: 68 ק"מ
+        </div>
+      </div>
+      
+      <div class="wave-alert-card cluster-card" style="border-left-color:#ef4444">
+        <div class="wave-alert-header">
+          <div class="wave-alert-icon" style="color:#ef4444">🎯</div>
+          <div class="wave-alert-title">טיל ראשון - TEL_AVIV_CENTER</div>
+        </div>
+        <div class="wave-alert-body">
+          <div class="wave-stat">
+            <span class="wave-stat-label">ישובים באזור</span>
+            <span class="wave-stat-value">314</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">זמן צפוי</span>
+            <span class="wave-stat-value">~7:45 דקות</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">רמת איום</span>
+            <span class="wave-stat-value" style="color:#ef4444">גבוה (68%)</span>
+          </div>
+          <div class="wave-target">
+            <span class="wave-target-label">🎯 מוקד:</span>
+            <span class="wave-target-coords">31.973, 35.018</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="wave-alert-card cluster-card" style="border-left-color:#8b5cf6">
+        <div class="wave-alert-header">
+          <div class="wave-alert-icon" style="color:#8b5cf6">🎯</div>
+          <div class="wave-alert-title">טיל שני - SOUTH</div>
+        </div>
+        <div class="wave-alert-body">
+          <div class="wave-stat">
+            <span class="wave-stat-label">ישובים באזור</span>
+            <span class="wave-stat-value">72</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">זמן צפוי</span>
+            <span class="wave-stat-value">~9:15 דקות</span>
+          </div>
+          <div class="wave-stat">
+            <span class="wave-stat-label">רמת איום</span>
+            <span class="wave-stat-value" style="color:#8b5cf6">בינוני (54%)</span>
+          </div>
+          <div class="wave-target">
+            <span class="wave-target-label">🎯 מוקד:</span>
+            <span class="wave-target-coords">31.419, 34.717</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="map-preview">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px">תצוגת מפה</div>
+        <div style="font-size:48px;margin:20px 0;display:flex;justify-content:center;gap:60px">
+          <span>🎯</span>
+          <span style="color:#8b5cf6">🎯</span>
+        </div>
+        <div class="marker-legend">
+          <div class="marker-item">
+            <div class="marker-dot" style="background:#ef4444"></div>
+            <span>מוקד 1 - מרכז</span>
+          </div>
+          <div class="marker-item">
+            <div class="marker-dot" style="background:#8b5cf6"></div>
+            <span>מוקד 2 - דרום</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div style="margin-top:60px;padding:24px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:12px;max-width:1400px">
+    <h3 style="font-size:18px;margin-bottom:12px;color:#c4b5fd">🔑 Key Visual Signature</h3>
+    <p style="font-size:14px;line-height:1.6;color:#d1d5db">
+      The system detects multi-missile attacks by identifying <strong>separated red polygons with gaps</strong> between them.
+      On average, <strong>27% of orange alerts</strong> fall in the gap zone between clusters.
+      This spatial separation (typically 50-80km) is the strongest indicator of multiple simultaneous missile impacts.
+    </p>
+  </div>
+  
+  <div style="margin-top:24px;text-align:center;color:#666;font-size:13px">
+    Open <a href="http://localhost:3000" style="color:#a78bfa">localhost:3000</a> to see the live system
+  </div>
+</body>
+</html>

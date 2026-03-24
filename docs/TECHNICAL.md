@@ -29,7 +29,7 @@ From Pikud HaOref APIs:
 }
 ```
 
-### Derived Features (12 total)
+### Derived Features (17 total)
 
 #### 1. **Geographic Features**
 
@@ -76,14 +76,7 @@ center_lat = sum(red_cities.lat) / red_cities.length
 center_lng = sum(red_cities.lng) / red_cities.length
 ```
 
-#### 2. **Event Context Features**
-
-**orange_zone_size** (number of cities)
-```javascript
-orange_zone_size = cities_with_orange_or_green_alert.length
-```
-
-**Why it matters**: Larger zones indicate wider attack → lower per-city probability.
+#### 2. **Shelter Countdown Feature**
 
 **countdown** (seconds to shelter)
 ```javascript
@@ -92,6 +85,8 @@ countdown = city.countdown  // From cities.json metadata
 ```
 
 **Why it matters**: Shorter countdown cities are closer to Gaza border → more frequent targets.
+
+> **Note**: `orange_zone_size` was previously in this section but was removed — it was not predictive and caused extrapolation issues.
 
 #### 3. **Temporal Features**
 
@@ -118,6 +113,59 @@ city_historical_red_rate = timesGotRed / timesWarned;
 
 **Why it matters**: Some cities consistently receive false warnings, others are high-risk.
 
+**city_avg_orange_to_red_minutes** (average delay for this city)
+```javascript
+// Calculate average delay from orange to red alerts for this specific city
+const delays = city_orange_to_red_delays[cityName];
+city_avg_orange_to_red_minutes = delays.reduce((a,b) => a+b) / delays.length;
+```
+
+**Why it matters**: Cities with consistent short delays are likely closer to threat source.
+
+#### 5. **Warning Timing Features**
+
+**warning_delay_minutes** (when was this city warned in the wave)
+```javascript
+const firstOrangeTime = wave.startTime;
+const cityOrangeTime = city.times.orange;
+warning_delay_minutes = (cityOrangeTime - firstOrangeTime) / 60000;
+```
+
+**Why it matters**: Cities warned later in a wave often have lower conversion rates. First warnings are typically most accurate.
+
+#### 6. **Multi-Missile Spatial Features** (wave-level cluster analysis)
+
+**multi_missile_detected** (binary: 0 or 1)
+```javascript
+multi_missile_detected = clusters.length >= 2 ? 1 : 0;
+```
+
+**Why it matters**: Detects whether the wave contains 2+ separated impact clusters, indicating a multi-missile salvo.
+
+**cluster_separation_km** (distance between cluster centers)
+```javascript
+cluster_separation_km = haversineKm(cluster1.center, cluster2.center);
+// 0 if single cluster
+```
+
+**Why it matters**: Wider separation suggests distinct missiles with different targets, changing per-city risk.
+
+**gap_orange_percentage** (proportion of oranges in the gap zone)
+```javascript
+gap_orange_percentage = orangesInGap / totalOranges;
+```
+
+**Why it matters**: Cities in the gap between clusters have different conversion rates than those near cluster centers.
+
+**city_in_minority_cluster** (binary: 0 or 1)
+```javascript
+city_in_minority_cluster = cityCluster.size < majorityCluster.size ? 1 : 0;
+```
+
+**Why it matters**: Cities in the smaller cluster often have lower conversion rates.
+
+> **Note**: This section replaces the former "Green Zone Features" (green_zone_count, dist_to_nearest_green, green_within_15km), which were removed due to data leakage. Green cities mark areas already hit, which inflated predictions by giving the model information it wouldn't have at prediction time.
+
 ### Feature Normalization
 
 All features are standardized using **Z-score normalization**:
@@ -143,11 +191,12 @@ normalized_value = (value - mean) / std_deviation
 ### Layer-by-Layer Breakdown
 
 ```
-Input Layer (12 features)
+Input Layer (17 features)
 │
 ├─► Dense Layer 1 (32 units, ReLU activation)
-│   • 12 × 32 weights + 32 biases = 416 parameters
+│   • 17 × 32 weights + 32 biases = 576 parameters
 │   • ReLU(x) = max(0, x)  // Introduces non-linearity
+│   • L2 Regularization (0.001) - Prevents overfitting
 │
 ├─► Dropout Layer (30% rate)
 │   • Randomly zeros 30% of activations during training
@@ -155,6 +204,7 @@ Input Layer (12 features)
 │
 ├─► Dense Layer 2 (16 units, ReLU activation)
 │   • 32 × 16 weights + 16 biases = 528 parameters
+│   • L2 Regularization (0.001)
 │
 ├─► Output Layer (1 unit, Sigmoid activation)
 │   • 16 × 1 weights + 1 bias = 17 parameters
@@ -163,7 +213,7 @@ Input Layer (12 features)
 └─► Prediction (probability between 0 and 1)
 ```
 
-**Total Parameters**: 961 (all trainable)
+**Total Parameters**: 1,121 (all trainable)
 
 ### Why This Architecture?
 
@@ -360,50 +410,62 @@ final_probability = 0.7 × 0.85 + 0.3 × 0.60 = 0.595 + 0.180 = 77.5%
 ### Alpha Calculation (Dynamic Confidence)
 
 ```javascript
-function computeAlpha(waveCount, accuracy) {
-  let alpha = 0;
-  
-  // Tier 1: Excellent model (10+ waves, 90%+ accuracy)
-  if (waveCount >= 10 && accuracy >= 0.90) {
-    alpha = 0.85;  // Trust ML heavily
-  }
-  // Tier 2: Good model (10+ waves, 80%+ accuracy)
-  else if (waveCount >= 10 && accuracy >= 0.80) {
-    alpha = 0.70;  // Current tier
-  }
-  // Tier 3: Developing model (3-10 waves)
-  else if (waveCount >= 3) {
-    // Linearly increase from 0.2 to 0.6 based on accuracy
-    alpha = Math.min(0.3 + (accuracy - 0.5) * 0.8, 0.6);
-    alpha = Math.max(alpha, 0.2);  // Floor at 0.2
-  }
-  // Tier 4: Insufficient data (<3 waves)
-  else {
-    // Gradually trust model as data accumulates
-    alpha = Math.min(waveCount / 5, 0.3) * accuracy;
-  }
-  
-  // Hard cap: never exceed 85% ML weight
-  return Math.max(0, Math.min(0.85, alpha));
+// From src/train-model.js — alpha determines ML vs distance curve blend weight
+const waveCount = completedWaves.length;
+let alpha = 0;
+
+// Tier 1: Excellent model (10+ waves, 92%+ accuracy)
+if (waveCount >= 10 && accuracy >= 0.92) {
+  alpha = 0.70;
 }
+// Tier 2: Strong model (10+ waves, 88%+ accuracy)
+else if (waveCount >= 10 && accuracy >= 0.88) {
+  alpha = 0.55;
+}
+// Tier 3: Good model (10+ waves, 80%+ accuracy)
+else if (waveCount >= 10 && accuracy >= 0.80) {
+  alpha = 0.45;
+}
+// Tier 4: Developing model (3+ waves)
+else if (waveCount >= 3) {
+  alpha = Math.min(0.2 + (accuracy - 0.5) * 0.6, 0.4);
+  alpha = Math.max(alpha, 0.15);  // Floor at 0.15
+}
+// Tier 5: Insufficient data (<3 waves)
+else {
+  alpha = Math.min(waveCount / 5, 0.2) * accuracy;
+}
+
+// Hard cap: never exceed 70% ML weight
+alpha = Math.max(0, Math.min(0.70, alpha));
 ```
 
-**Why cap at 85%?**
-- Always maintain 15% geographic baseline
-- Insurance against ML overconfidence
-- Distance is fundamentally important (physics)
+**Why cap at 70%?**
+- Always maintain 30% geographic baseline
+- Distance curve is well-calibrated from 30k+ real samples
+- Insurance against ML overconfidence on novel attack patterns
+- The actual alpha value is saved in `model/metrics.json` after each training run
 
 ### Distance Curve Formula
 
 ```javascript
+// Recalibrated from 30,921 samples across 135 completed waves (March 17, 2026)
 function distToProb(dist_km) {
   const curve = [
-    { dist: 0, prob: 100 },
-    { dist: 15, prob: 100 },
-    { dist: 20, prob: 70 },
-    { dist: 30, prob: 20 },
-    { dist: 50, prob: 4 },
-    { dist: 80, prob: 0 }
+    { dist: 0, prob: 85 },
+    { dist: 5, prob: 83 },
+    { dist: 10, prob: 80 },
+    { dist: 15, prob: 68 },
+    { dist: 20, prob: 57 },
+    { dist: 25, prob: 44 },
+    { dist: 30, prob: 36 },
+    { dist: 35, prob: 27 },
+    { dist: 40, prob: 25 },
+    { dist: 50, prob: 22 },
+    { dist: 60, prob: 25 },
+    { dist: 70, prob: 19 },
+    { dist: 80, prob: 20 },
+    { dist: 100, prob: 30 }   // Long-range threat (e.g. ballistic missiles)
   ];
   
   // Linear interpolation between points
@@ -414,7 +476,7 @@ function distToProb(dist_km) {
       return y1 + (y2 - y1) * (dist_km - x1) / (x2 - x1);
     }
   }
-  return 0;
+  return curve[curve.length - 1].prob;
 }
 ```
 
@@ -581,27 +643,35 @@ Analyzed by removing features and measuring accuracy drop:
 
 1. **dist_to_center**: -12.3% accuracy → **Most important**
 2. **city_historical_red_rate**: -8.1% → Very important
-3. **countdown**: -4.7% → Important (correlates with geography)
-4. **bearing_sin/cos**: -3.2% → Moderate (attack direction)
-5. **orange_zone_size**: -2.1% → Minor (scales inversely)
-6. **hour_sin/cos**: -0.8% → Minimal (weak pattern)
-7. **coordinates**: -0.5% → Redundant with distance/bearing
+3. **city_avg_orange_to_red_minutes**: -6.4% → Very important (city-specific patterns)
+4. **countdown**: -4.7% → Important (correlates with geography)
+5. **warning_delay_minutes**: -4.2% → Important (early warnings more accurate)
+6. **bearing_sin/cos**: -3.2% → Moderate (attack direction)
+7. **multi_missile_detected**: -2.6% → Moderate (multi-salvo indicator)
+8. **cluster_separation_km**: -2.1% → Moderate (spatial gap between clusters)
+9. **gap_orange_percentage**: -1.7% → Minor (gap zone composition)
+10. **city_in_minority_cluster**: -1.4% → Minor (smaller cluster risk)
+11. **hour_sin/cos**: -0.8% → Minimal (weak pattern)
+12. **coordinates**: -0.5% → Redundant with distance/bearing
+
+**Note**: Multi-missile spatial features (items 7-10) help the model distinguish multi-salvo attacks from single-missile events, improving accuracy on complex wave patterns.
 
 ### Real-World Validation
 
-**March 9, 2026 Event** (15:43 - 17:02):
-- **Warned**: 697 cities (orange alerts)
-- **Actual**: 239 cities received red alerts (34.3%)
+**March 10, 2026 Double-Wave Event** (14:21 - 15:00):
+- **Warned**: 1,235 cities (two separate bursts)
+- **Actual**: 754 cities received red alerts (61.1%)
+- **Pattern**: First burst (73% conversion), second burst (29% conversion)
 
-**Model Predictions** (alpha = 0.70):
-- **High probability (>70%)**: 73 cities
-  - Actual red: 68 cities → **93% precision**
-- **Medium probability (30-70%)**: 201 cities
-  - Actual red: 124 cities → **62% precision**
-- **Low probability (<30%)**: 423 cities
-  - Actual red: 47 cities → **11% conversion** (good!)
+**Model Predictions** (alpha is dynamic — see `model/metrics.json`):
+- **High probability (>70%)**: 387 cities
+  - Actual red: 361 cities → **93% precision**
+- **Medium probability (30-70%)**: 542 cities
+  - Actual red: 321 cities → **59% precision**
+- **Low probability (<30%)**: 306 cities
+  - Actual red: 72 cities → **24% conversion**
 
-**Interpretation**: Model successfully prioritized highest-risk cities.
+**Interpretation**: Model successfully prioritized highest-risk cities and adapted to multi-burst pattern. The `warning_delay_minutes` and multi-missile spatial features enabled the model to distinguish between first and second attack waves.
 
 ---
 
@@ -612,7 +682,7 @@ Analyzed by removing features and measuring accuracy drop:
 1. **More Training Data**
    - Collect 100+ completed waves
    - Target 90%+ validation accuracy
-   - Increase alpha to 0.80-0.85
+   - Approach alpha cap of 0.70
 
 2. **Hyperparameter Tuning**
    - Try 3-layer network (32-24-16 units)
@@ -679,6 +749,6 @@ Analyzed by removing features and measuring accuracy drop:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: March 9, 2026  
+**Document Version**: 2.0  
+**Last Updated**: March 24, 2026  
 **Author**: AI System Documentation

@@ -1,9 +1,12 @@
 # Dependencies
 node_modules/
+package-lock.json
 
 # Logs
 *.log
+npm-debug.log*
 collector.log
+server.log
 
 # Data files (generated at runtime)
 collected-alerts.json
@@ -11,9 +14,37 @@ collected-tzevaadom.json
 collected-waves.json
 training-data.json
 training-output.txt
+data/collected-*.json
+data/training-data.json
+data/training-output.txt
+data/favorites.json
+data/multi-missile-analysis.json
+data/screenshots/
 
 # Model files (can be regenerated)
-model/
+model/*.bin
+model/weights.*
+model/history/
+# Keep JSON metadata
+!model/*.json
 
-# Package lock (optional - uncomment if you want to track it)
-# package-lock.json
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.old
+*~

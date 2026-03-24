@@ -21,7 +21,7 @@
                                     │ Every 30s
                                     ▼
            ┌────────────────────────────────────────────────┐
-           │         COLLECTOR.JS (Background Service)      │
+           │         src/collector.js (Background Service)      │
            │  • Polls 3 data sources                        │
            │  • Deduplicates alerts                         │
            │  • Detects wave boundaries (20-min gap)        │
@@ -38,7 +38,7 @@
         │   title, category    │    │    summary: {...}    │
         │ }}                   │    │ }]                   │
         │                      │    │                      │
-        │ 12,803 alerts        │    │ 98 waves (63 done)   │
+        │ Deduped alerts       │    │ Waves (completed)    │
         └──────────────────────┘    └──────────────────────┘
                                               │
                                               │
@@ -46,9 +46,9 @@
                           (hasGreen + ≥5)     │
                                               ▼
                         ┌─────────────────────────────────┐
-                        │   TRAIN-MODEL.JS (Triggered)     │
+                        │   src/train-model.js (Triggered)     │
                         │  • Load completed waves          │
-                        │  • Extract 12 features/city      │
+                        │  • Extract 17 features/city      │
                         │  • Normalize features (Z-score)  │
                         │  • Train neural network (80 ep)  │
                         │  • Compute blend alpha           │
@@ -73,7 +73,7 @@
                                      │ File watcher detects
                                      ▼
          ┌─────────────────────────────────────────────────────┐
-         │          SERVER.JS (Node.js HTTP Server)             │
+         │          src/server.js (Node.js HTTP Server)             │
          │                                                      │
          │  ┌─────────────────────────────────────────────┐   │
          │  │  Model Loading & Watching                    │   │
@@ -94,6 +94,7 @@
          │  │  /api/leaderboard   → Top cities            │   │
          │  │  /api/full-history  → Historical data       │   │
          │  │  /api/collected     → Local storage query   │   │
+         │  │  /api/recent-history→ Recent + collected    │   │
          │  │                                              │   │
          │  │  /                  → index.html            │   │
          │  └─────────────────────────────────────────────┘   │
@@ -183,11 +184,13 @@ User opens browser
 │    Build city list                   │
 │         ↓                            │
 │    Call ML prediction API            │
-│    GET /api/predict?                 │
-│      cities=city1,city2,...          │
-│      &centerLat=32.08                │
-│      &centerLng=34.78                │
-│      &zoneSize=50                    │
+│    POST /api/predict                 │
+│      Body: {                         │
+│        cities: ["city1","city2",...], │
+│        centerLat: 32.08,             │
+│        centerLng: 34.78,             │
+│        zoneSize: 50                  │
+│      }                               │
 │         ↓                            │
 │    Receive predictions:              │
 │    {                                 │
@@ -220,7 +223,8 @@ User opens browser
 ## 🤖 Machine Learning Prediction Flow
 
 ```
-/api/predict receives request
+POST /api/predict receives request
+  Body: { cities, centerLat, centerLng, zoneSize }
        ↓
 ┌────────────────────────────────────────────────┐
 │  1. Load ML Model (if not already loaded)      │
@@ -238,14 +242,19 @@ User opens browser
 │                                                 │
 │     B. ML PREDICTION (if model loaded)         │
 │        features = [                            │
-│          distance,                             │
+│          dist_to_center,                       │
 │          bearing_sin, bearing_cos,             │
-│          orange_zone_size,                     │
 │          city_lat, city_lng,                   │
 │          center_lat, center_lng,               │
 │          countdown,                            │
 │          hour_sin, hour_cos,                   │
-│          city_historical_red_rate              │
+│          city_historical_red_rate,             │
+│          warning_delay_minutes,                │
+│          city_avg_orange_to_red_minutes,       │
+│          multi_missile_detected,               │
+│          cluster_separation_km,                │
+│          gap_orange_percentage,                │
+│          city_in_minority_cluster              │
 │        ]                                       │
 │        normalized = normalize(features)        │
 │        ml_prob = model.predict(normalized)     │
@@ -286,7 +295,7 @@ Event occurs in real world
 Pikud HaOref issues alerts
        ↓
 ┌─────────────────────────────────────────────────┐
-│  COLLECTOR.JS (polling every 30 seconds)        │
+│  src/collector.js (polling every 30 seconds)        │
 │                                                  │
 │  1. Fetch new alerts from 3 sources             │
 │  2. Deduplicate (by alertDate|city|title)       │
@@ -307,19 +316,19 @@ Pikud HaOref issues alerts
 │                                                  │
 │        ┌──────────────────────────────────┐    │
 │        │  TRIGGER RETRAINING              │    │
-│        │  execFile('node train-model.js') │    │
+│        │  execFile('node src/train-model.js') │    │
 │        └──────────────────────────────────┘    │
 │                ↓                                 │
 └────────────────┼─────────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────────┐
-│  TRAIN-MODEL.JS (child process, ~15s)           │
+│  src/train-model.js (child process, ~15s)           │
 │                                                  │
 │  1. Load collected-waves.json                   │
 │  2. Filter to completed waves (hasGreen + ≥5)   │
 │  3. Extract features for each warned city       │
-│     • 12 features per city per wave             │
+│     • 17 features per city per wave             │
 │     • Label: 1 if got red, 0 if not            │
 │       ↓                                          │
 │  4. Compute normalization (μ, σ for each feat)  │
@@ -347,7 +356,7 @@ Pikud HaOref issues alerts
                  │ Files written to disk
                  ▼
 ┌─────────────────────────────────────────────────┐
-│  SERVER.JS (file watcher active)                │
+│  src/server.js (file watcher active)                │
 │                                                  │
 │  Detects model.json or metrics.json changed     │
 │       ↓                                          │
@@ -475,7 +484,7 @@ To reset:
 ```
 index.html
 ├── Uses: Leaflet.js (CDN)
-├── Calls: server.js APIs
+├── Calls: src/server.js APIs
 │   ├── /api/cities
 │   ├── /api/polygons
 │   ├── /api/alerts (every 5s)
@@ -486,8 +495,11 @@ index.html
 └── Stores: localStorage
     └── favoriteCities: ["city1", "city2"]
 
-server.js
+src/server.js
 ├── Depends on:
+│   ├── lib/config.js
+│   ├── lib/utils/*
+│   ├── lib/ml/*
 │   ├── pikud-haoref-api/cities.json
 │   ├── pikud-haoref-api/polygons.json
 │   ├── collected-alerts.json
@@ -495,22 +507,31 @@ server.js
 │   │   ├── model.json
 │   │   ├── weights.bin
 │   │   ├── normalization.json
-│   │   └── metrics.json
+│   │   ├── metrics.json
+│   │   ├── city-delays.json
+│   │   ├── city-historical-rates.json
+│   │   └── city-conditional-rates.json
 │   └── axios (HTTP requests)
 └── Serves: index.html, API endpoints
 
-collector.js
+src/collector.js
 ├── Polls:
 │   ├── Oref APIs (AlertsHistory, GetAlarmsHistory)
 │   └── Tzevaadom API
 ├── Writes to:
 │   ├── collected-alerts.json
 │   └── collected-waves.json
-└── Executes: train-model.js (when wave completes)
+└── Executes: src/train-model.js (when wave completes)
 
-train-model.js
+src/train-model.js
 ├── Depends on:
 │   ├── @tensorflow/tfjs-node
+│   ├── lib/config.js
+│   ├── lib/utils/geo.js
+│   ├── lib/utils/alerts.js
+│   ├── lib/utils/waves.js
+│   ├── lib/utils/multi-missile.js
+│   ├── lib/ml/features.js
 │   ├── collected-waves.json
 │   └── pikud-haoref-api/cities.json
 └── Writes to:
@@ -518,7 +539,10 @@ train-model.js
         ├── model.json
         ├── weights.bin
         ├── normalization.json
-        └── metrics.json
+        ├── metrics.json
+        ├── city-delays.json
+        ├── city-historical-rates.json
+        └── city-conditional-rates.json
 
 package.json
 └── Dependencies:
@@ -587,7 +611,7 @@ package.json
 
 ## 🚦 Component States
 
-### Server (server.js)
+### Server (src/server.js)
 ```
 States:
 ├─► STARTING
@@ -606,7 +630,7 @@ States:
     • Watching model/ for updates
 ```
 
-### Collector (collector.js)
+### Collector (src/collector.js)
 ```
 States:
 ├─► INITIALIZING
@@ -620,7 +644,7 @@ States:
 │
 └─► RETRAINING (temporary)
     • Detected new completed wave
-    • Spawned train-model.js
+    • Spawned src/train-model.js
     • Waiting for completion (~15s)
     • Then returns to POLLING
 ```

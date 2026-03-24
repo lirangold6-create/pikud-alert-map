@@ -1,0 +1,35 @@
+---
+description: Keeps prediction logic and history display in sync
+alwaysApply: true
+---
+
+# Prediction & History Must Stay in Sync
+
+When modifying how predictions work, the history tab MUST also be updated to reflect those changes.
+
+## Connected Components
+
+| Prediction (live) | History (replay) |
+|---|---|
+| `src/server.js` → `predict()` | `public/js/history.js` → `fetchAndInjectProbabilities()` |
+| `public/js/alerts.js` → `refreshAlerts()` | `public/js/history.js` → `showConversionDetailModal()` |
+| `src/server.js` → `resolveAttackCenter()` | History replays predictions via `POST /api/predict` |
+
+## Rules
+
+1. If you change the prediction API request shape (`POST /api/predict`), update BOTH:
+   - `public/js/alerts.js` (live call)
+   - `public/js/history.js` (replay calls in `fetchAndInjectProbabilities` and `showConversionDetailModal`)
+
+2. If you change the prediction response shape, update BOTH:
+   - `public/js/alerts.js` (reads `predRes.predictions[city].prob`, `.ml`, `.dist`, etc.)
+   - `public/js/history.js` (reads the same fields when injecting probabilities into timeline)
+
+3. If you add new prediction metadata (e.g., new multiplier), add it to:
+   - The API response in `src/server.js`
+   - The popup display in `public/js/alerts.js`
+   - The timeline badge in `public/js/history.js`
+
+4. Wave grouping in history (`20 * 60000` ms gap) MUST match `config.WAVE_GAP_MS`.
+
+5. `showWaveTimeline()` in `public/js/map.js` must handle any new visualization data (e.g., multi-missile clusters) that you add to the prediction flow.

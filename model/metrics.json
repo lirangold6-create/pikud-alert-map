@@ -1,0 +1,59 @@
+{
+  "trainedAt": "2026-03-24T18:53:27.931Z",
+  "wavesUsed": 218,
+  "totalSamples": 58146,
+  "positiveRate": 0.41755236817665875,
+  "validation": {
+    "accuracy": 0.8396388650042992,
+    "precision": 0.7489612188365651,
+    "recall": 0.9124657245306897,
+    "f1": 0.8226680612341922,
+    "tp": 4326,
+    "fp": 1450,
+    "tn": 5439,
+    "fn": 415,
+    "totalSamples": 11630
+  },
+  "full": {
+    "accuracy": 0.8458363429986585,
+    "precision": 0.7629365106616763,
+    "recall": 0.9151530128917995,
+    "f1": 0.8321411183101756,
+    "tp": 22219,
+    "fp": 6904,
+    "tn": 26963,
+    "fn": 2060,
+    "totalSamples": 58146
+  },
+  "bestValAcc": 0.8526225090026855,
+  "bestEpoch": 78,
+  "alpha": 0.45,
+  "featureNames": [
+    "dist_to_center",
+    "bearing_sin",
+    "bearing_cos",
+    "city_lat",
+    "city_lng",
+    "center_lat",
+    "center_lng",
+    "countdown",
+    "hour_sin",
+    "hour_cos",
+    "city_historical_red_rate",
+    "warning_delay_minutes",
+    "city_avg_orange_to_red_minutes",
+    "multi_missile_detected",
+    "cluster_separation_km",
+    "gap_orange_percentage",
+    "city_in_minority_cluster"
+  ],
+  "classWeights": {
+    "0": 1,
+    "1": 1.3807963967652779
+  },
+  "hyperparams": {
+    "epochs": 80,
+    "batchSize": 64,
+    "learningRate": 0.001
+  }
+}

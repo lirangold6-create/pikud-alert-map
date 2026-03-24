@@ -1,0 +1,42 @@
+---
+description: Frontend code patterns and conventions
+globs: public/**/*.js,public/**/*.css,index.html
+alwaysApply: false
+---
+
+# Frontend Patterns
+
+## Module System
+
+- All frontend JS is vanilla ES modules (`import`/`export`) — no bundler
+- Entry point: `public/js/main.js` (loaded by `index.html`)
+- State management: `public/js/state.js` (mutable module-level globals with setters)
+- Cannot import from `lib/` (CommonJS) — any shared logic is intentionally duplicated
+
+## Key Modules
+
+| File | Responsibility |
+|------|---------------|
+| `alerts.js` | Live tab: refresh cycle, prediction UI, map layers |
+| `history.js` | History tab: city search, wave grouping, probability injection |
+| `map.js` | Leaflet init, polygon rendering, wave timeline, `makeMissileIcon` |
+| `api.js` | All `fetch()` wrappers for backend APIs |
+| `config.js` | UI constants, client-side PROB_CURVE (fallback only) |
+| `utils.js` | Geo helpers, alert classification, probability styling |
+
+## Conventions
+
+- UI text is Hebrew (RTL). Use `direction: rtl` in CSS.
+- `makeMissileIcon()` is defined in `map.js` — import it, never duplicate it.
+- Alert classification: use `isAlertOrange()`, `isAlertRed()`, `isAlertGreen()` from `utils.js`.
+- Probability colors: use `probToColor()` and `probToClass()` from `utils.js`.
+- Global functions (for onclick handlers): register on `window` at bottom of module.
+- Favorites: stored in `localStorage` key `favoriteCities`.
+
+## Refresh Cycle
+
+1. Every 5 seconds, `refreshAlerts()` in `alerts.js` fires
+2. Fetches `/api/alerts` + `/api/recent-history` in parallel
+3. For orange cities: calls `POST /api/predict`
+4. Updates map layers (only changed cities for smooth transitions)
+5. Auto-fits map bounds unless user manually moved it

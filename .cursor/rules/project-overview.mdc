@@ -1,0 +1,40 @@
+---
+description: Pikud HaOref live alert map project overview and architecture
+alwaysApply: true
+---
+
+# Project Overview
+
+This is a real-time Pikud HaOref alert map with an ML prediction layer. The system predicts which cities under orange (warning) alerts will receive red (rocket) alerts.
+
+## Architecture (3 processes)
+
+- **`src/server.js`** — HTTP server, serves UI and ML prediction API
+- **`src/collector.js`** — Polls Oref + Tzevaadom APIs, stores alerts, triggers retraining
+- **`src/train-model.js`** — Trains TensorFlow.js model on completed waves
+
+## Key Data Flow
+
+```
+Oref APIs → collector → data/collected-alerts.json → train-model → model/ → server → frontend
+```
+
+## Shared Libraries (`lib/`)
+
+| Module | Purpose |
+|--------|---------|
+| `lib/config.js` | All constants, URLs, hyperparameters, PROB_CURVE, paths |
+| `lib/ml/features.js` | **Single source of truth** for ML feature extraction |
+| `lib/ml/validate-model.js` | Validates model/feature compatibility at startup |
+| `lib/utils/geo.js` | Haversine distance, bearing, centroid |
+| `lib/utils/alerts.js` | Alert classification (orange/red/green) |
+| `lib/utils/waves.js` | Wave detection (20-min gap grouping) |
+| `lib/utils/regions.js` | Regional attack patterns and multipliers |
+| `lib/utils/multi-missile.js` | Multi-missile cluster detection |
+
+## Critical Invariants
+
+1. **Feature alignment**: `lib/ml/features.js` defines ALL features. Both training (`src/train-model.js`) and inference (`src/server.js`) MUST use it.
+2. **Wave gap**: 20 minutes (`config.WAVE_GAP_MS`). Do NOT hardcode this elsewhere.
+3. **Center threshold**: 80km separates "same attack" from "different attack" for red/orange centers.
+4. **No bundler**: Frontend uses vanilla ES modules. Cannot import CommonJS from `lib/`.

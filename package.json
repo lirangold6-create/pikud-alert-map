@@ -2,12 +2,29 @@
   "name": "pikud-live-map",
   "version": "1.0.0",
   "description": "Live alert map with ML-powered red alert probability prediction",
+  "main": "src/server.js",
   "scripts": {
-    "serve": "node server.js",
-    "collect": "node collector.js",
-    "train": "node train-model.js"
+    "start": "node src/server.js",
+    "serve": "node src/server.js",
+    "collect": "node src/collector.js",
+    "train": "node src/train-model.js",
+    "analyze": "node scripts/analyze-waves.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:calibration": "node scripts/test-prediction-calibration.js",
+    "validate:model": "node -e \"require('./lib/ml/validate-model').validateModelOrThrow('./model')\"",
+    "check:features": "node -e \"const {getFeatureCount, getFeatureNames} = require('./lib/ml/features'); console.log('✅ Feature count:', getFeatureCount()); console.log('Features:', getFeatureNames().join(', '));\""
   },
   "dependencies": {
-    "@tensorflow/tfjs-node": "^4.22.0"
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "axios": "^1.6.0",
+    "form-data": "^4.0.5",
+    "puppeteer-core": "^24.40.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

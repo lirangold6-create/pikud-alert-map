@@ -1,0 +1,43 @@
+---
+description: Server-side code patterns and conventions
+globs: src/**/*.js,lib/**/*.js
+alwaysApply: false
+---
+
+# Server-Side Patterns
+
+## Configuration
+
+- ALL constants go in `lib/config.js` (never hardcode URLs, thresholds, or paths)
+- Environment variables override config defaults via `.env`
+- File paths use `config.PATHS.*` relative to project root
+
+## Error Handling
+
+- Wrap ALL external API calls (Oref, Tzevaadom) in try/catch
+- Return cached data on fetch failure (see `fetchFullHistory()` pattern)
+- Log errors with context prefix: `[ML]`, `[API]`, `[Startup]`, `[retrain]`
+- Never use empty catch blocks — at minimum log the error
+
+## ML Model
+
+- Model lives in `model/` directory, auto-reloaded via `fs.watch`
+- Always validate model compatibility before loading (`validateModel()`)
+- Prediction blending: `alpha * ML + (1-alpha) * distanceCurve`
+- Alpha is capped at 0.70, computed during training based on accuracy + data volume
+- Use `extractFeatures()` from `lib/ml/features.js` — never reimplement
+
+## Module System
+
+- Server code uses **CommonJS** (`require`/`module.exports`)
+- Frontend code uses **ES modules** (`import`/`export`)
+- These cannot cross-import — any shared logic must be duplicated with a comment explaining why
+
+## Testing
+
+```bash
+npm test                  # Unit tests (Jest)
+npm run check:features    # Verify feature alignment
+npm run validate:model    # Check model compatibility
+npm run test:calibration  # Model calibration validation
+```

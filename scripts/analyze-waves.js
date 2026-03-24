@@ -1,46 +1,23 @@
 const fs = require('fs');
 const path = require('path');
-const axios = require(path.join(__dirname, 'pikud-haoref-api/node_modules/axios'));
+const axios = require('axios');
 
-const TZEVAADOM_URL = 'https://api.tzevaadom.co.il/alerts-history';
-const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-const OREF_HEADERS = {
-  'Referer': 'https://www.oref.org.il/',
-  'X-Requested-With': 'XMLHttpRequest',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
+const config = require('../lib/config');
+const { haversineKm, centroid, median } = require('../lib/utils/geo');
 
-const cities = JSON.parse(fs.readFileSync(path.join(__dirname, 'pikud-haoref-api/cities.json'), 'utf8'));
+const TZEVAADOM_URL = config.TZEVAADOM_URL;
+const OREF_HISTORY_URL = config.OREF_HISTORY_URL;
+const OREF_HEADERS = config.OREF_HEADERS;
+
+const cities = JSON.parse(fs.readFileSync(path.join(__dirname, '..', config.PATHS.CITIES), 'utf8'));
 const nameToCity = {};
 cities.forEach(c => { nameToCity[c.name] = c; });
 
-const COLLECTED_FILE = path.join(__dirname, 'collected-alerts.json');
-
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function centroid(points) {
-  if (points.length === 0) return null;
-  const sum = points.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 });
-  return { lat: sum.lat / points.length, lng: sum.lng / points.length };
-}
+const COLLECTED_FILE = path.join(__dirname, '..', config.PATHS.COLLECTED_ALERTS);
 
 function getCityCoords(name) {
   const c = nameToCity[name];
   return (c && c.lat && c.lng) ? { lat: c.lat, lng: c.lng } : null;
-}
-
-function median(arr) {
-  if (arr.length === 0) return 0;
-  const s = [...arr].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
 async function main() {

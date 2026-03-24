@@ -1,0 +1,39 @@
+---
+description: ML feature system rules - prevents training/inference drift
+globs: lib/ml/features.js,src/train-model.js,src/server.js,lib/config.js
+alwaysApply: false
+---
+
+# ML Feature System
+
+`lib/ml/features.js` is the **single source of truth** for feature definitions. NEVER duplicate feature extraction logic.
+
+## Adding a New Feature
+
+1. Add to `FEATURE_DEFINITIONS` array in `lib/ml/features.js`
+2. Add extraction logic in `extractFeatures()` in the same file
+3. Update `FEATURE_NAMES` in `lib/config.js` to match
+4. Run `npm run check:features` to verify alignment
+5. Run `npm run train` to retrain the model
+6. The server auto-reloads via file watcher — no restart needed
+
+## Rules
+
+- `src/train-model.js` calls `extractCityFeatures()` from `lib/ml/features.js` for per-city vectors
+- `src/server.js` calls the same `extractFeatures()` for inference
+- NEVER create a parallel feature extraction function
+- Feature order MUST match `FEATURE_DEFINITIONS` exactly
+- `lib/ml/validate-model.js` catches mismatches at server startup
+
+## Current Features (17)
+
+Geographic (7): dist_to_center, bearing_sin, bearing_cos, city_lat, city_lng, center_lat, center_lng
+Context (2): countdown, warning_delay_minutes
+Historical (2): city_historical_red_rate, city_avg_orange_to_red_minutes
+Temporal (2): hour_sin, hour_cos
+Multi-missile (4): multi_missile_detected, cluster_separation_km, gap_orange_percentage, city_in_minority_cluster
+
+## Removed Features (do NOT re-add)
+
+- `orange_zone_size` — not predictive, caused extrapolation on large waves
+- `green_zone_count`, `dist_to_nearest_green`, `green_within_15km` — data leakage (green marks post-impact)

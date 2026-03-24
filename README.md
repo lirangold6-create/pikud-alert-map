@@ -6,10 +6,17 @@ A real-time alert monitoring system for Pikud HaOref (Israeli Home Front Command
 
 ### Key Features
 - **Live Alert Map**: Real-time visualization of red (rocket), orange (warning), and green (all-clear) alerts
-- **ML-Powered Predictions**: 87.9% accurate predictions of orange→red conversion probability
+- **ML-Powered Predictions**: Spatial gap awareness (v1.2); see `model/metrics.json` for current model metrics.
+- **Multi-Missile Detection & UI**: Automatically detects separated missile clusters and shows:
+  - **Multiple center markers** on map (color-coded per cluster)
+  - **Separate countdown timers** for each missile
+  - **Independent threat assessment** per cluster
+  - Learns from red polygon separation pattern (27% avg gap)
+- **Regional Attack Recognition**: Distinguishes Jerusalem vs Tel Aviv vs North vs South attack patterns
+- **Red Alert Feedback**: Once cities turn red, probabilities for remaining cities automatically adjust
 - **Automatic Learning**: Model retrains after each completed alert wave
 - **Favorites System**: Star cities you care about to track them at the top
-- **Historical Analysis**: View city-specific alert history with conversion rates
+- **Historical Analysis**: View city-specific alert history with conversion rates and multi-missile markers
 - **Leaderboards**: Track which cities receive the most alerts
 
 ---
@@ -18,22 +25,82 @@ A real-time alert monitoring system for Pikud HaOref (Israeli Home Front Command
 
 ```
 pikud/
-├── server.js              # Node.js HTTP server (API + static files)
-├── collector.js           # Background data collector + auto-retraining
-├── train-model.js         # TensorFlow.js ML training pipeline
-├── index.html             # Frontend (map + UI)
-├── package.json           # Dependencies
-├── collected-alerts.json  # Raw alert data (persisted)
-├── collected-waves.json   # Processed alert waves (persisted)
-├── model/                 # Trained ML model directory
-│   ├── model.json         # TensorFlow.js model
-│   ├── weights.bin        # Model weights
-│   ├── metrics.json       # Training metrics + alpha blend factor
-│   └── normalization.json # Feature scaling parameters
-└── pikud-haoref-api/      # Submodule: city metadata + polygons
-    ├── cities.json        # City data (name, zone, lat/lng, countdown)
-    └── polygons.json      # City boundary polygons
+├── index.html             # Frontend entry point
+├── package.json           # Dependencies & npm scripts
+├── README.md              # This file
+├── .env.example          # Environment template
+│
+├── src/                   # Source code
+│   ├── server.js         # HTTP server + ML predictions
+│   ├── collector.js      # Alert collector + auto-retrain
+│   └── train-model.js    # ML training pipeline
+│
+├── scripts/               # Utility scripts
+│   ├── analyze-waves.js                  # Wave analysis tool
+│   ├── analyze-multi-missile-patterns.js # Multi-missile pattern analysis
+│   ├── analyze-model-calibration.js      # Calibration metrics
+│   ├── recalculate-probabilities.js      # Batch re-prediction
+│   └── test-prediction-calibration.js    # Validation on test set
+│
+├── lib/                   # Shared libraries
+│   ├── config.js         # Centralized configuration
+│   ├── ml/               # ML utilities
+│   │   ├── features.js   # Feature extraction (single source of truth)
+│   │   └── validate-model.js # Model compatibility checking
+│   └── utils/            # Utility modules
+│       ├── geo.js        # Geographic calculations
+│       ├── alerts.js     # Alert classification
+│       ├── waves.js      # Wave detection
+│       ├── regions.js    # Regional clustering & attack patterns
+│       ├── multi-missile.js # Multi-missile detection & clustering
+│       └── telegram.js   # Telegram notifications
+│
+├── public/                # Frontend assets
+│   ├── css/
+│   │   └── styles.css    # All styles
+│   └── js/               # JavaScript modules (11 files)
+│       ├── main.js       # Entry point
+│       ├── config.js     # Constants
+│       ├── state.js      # State management
+│       ├── utils.js      # Utilities
+│       ├── api.js        # API calls
+│       ├── favorites.js  # Favorites
+│       ├── map.js        # Map logic
+│       ├── history.js    # History tab
+│       ├── alerts.js     # Live alerts tab
+│       ├── leaderboard.js # Leaderboard tab
+│       └── tabs.js       # Tab switching
+│
+├── tests/                 # Test suite
+│   └── unit/             # Unit tests (34 tests)
+│
+├── docs/                  # Documentation
+│   ├── ARCHITECTURE.md          # System architecture
+│   ├── TECHNICAL.md             # Technical deep-dive
+│   ├── MULTI_MISSILE.md         # Multi-missile detection system
+│   ├── FEATURE_SYSTEM.md        # Feature mismatch prevention
+│   ├── MODEL_CALIBRATION_REPORT.md # Model calibration analysis
+│   └── archive/                 # Historical documentation
+│
+├── data/                  # Generated data
+│   ├── collected-alerts.json
+│   ├── collected-waves.json
+│   └── training-data.json
+│
+├── model/                 # ML model files
+│   ├── model.json              # TensorFlow.js architecture
+│   ├── weights.bin             # Trained parameters
+│   ├── metrics.json            # Training metrics + alpha blend
+│   ├── normalization.json      # Feature scaling (means/stds)
+│   ├── city-delays.json        # Historical orange→red delay per city
+│   └── city-historical-rates.json # Historical conversion rates per city
+│
+└── pikud-haoref-api/     # Static reference data
+    ├── cities.json       # 1,360 cities
+    └── polygons.json     # City boundaries
 ```
+
+See `docs/ARCHITECTURE.md` for detailed architecture documentation.
 
 ---
 
@@ -97,43 +164,74 @@ pikud/
 
 ### Model Architecture
 
-**Type**: Feedforward Neural Network (Binary Classifier)
+**Type**: Feedforward Neural Network (Binary Classifier) with Regional Awareness & Red Alert Feedback
 
-**Input**: 12 features per city in warning zone
+**Input**: 17 features per city in warning zone
+
+**Geographic Features** (7):
 - `dist_to_center`: Distance from predicted impact center (km)
 - `bearing_sin`, `bearing_cos`: Direction to center (encoded as sin/cos)
-- `orange_zone_size`: Number of cities in warning zone
 - `city_lat`, `city_lng`: City coordinates
 - `center_lat`, `center_lng`: Impact center coordinates
+
+**Event Context Features** (2):
 - `countdown`: Time to reach shelter (seconds)
-- `hour_sin`, `hour_cos`: Time of day (encoded as sin/cos)
+- `warning_delay_minutes`: Time since first orange alert in wave
+
+**Historical Features** (2):
 - `city_historical_red_rate`: Historical conversion rate for this city
+- `city_avg_orange_to_red_minutes`: Average delay from orange to red for this city
+
+**Temporal Features** (2):
+- `hour_sin`, `hour_cos`: Time of day (encoded as sin/cos)
+
+**Multi-Missile Features** (4):
+- `multi_missile_detected`: Whether 2+ separated missile clusters detected
+- `cluster_separation_km`: Distance between detected clusters
+- `gap_orange_percentage`: Percentage of orange cities in gap zone between clusters
+- `city_in_minority_cluster`: Whether city belongs to the smaller cluster
 
 **Architecture**:
 ```
-Input (12 features)
+Input (17 features)
     ↓
-Dense (32 units, ReLU) + Dropout (0.3)
+Dense (32 units, ReLU) + Dropout (0.3) + L2 Regularization
     ↓
-Dense (16 units, ReLU)
+Dense (16 units, ReLU) + L2 Regularization
     ↓
 Dense (1 unit, Sigmoid) → Probability [0-1]
+    ↓
+Regional Adjustment × Red Alert Feedback → Final Probability
 ```
 
 **Training**:
-- 80 epochs
-- Batch size: 64
-- Learning rate: 0.001
+- 80 epochs, Batch size: 64, Learning rate: 0.001
 - Optimizer: Adam
 - Loss: Binary crossentropy with class weights
 - Validation split: 20%
 
-**Current Performance** (as of March 9, 2026):
-- Validation Accuracy: **87.9%**
-- Precision: **83.6%** (when predicting red, correct 83.6% of time)
-- Recall: **88.2%** (catches 88.2% of actual red alerts)
-- F1 Score: **85.8%**
-- Trained on: **63 completed waves**, **4,157 samples**
+**Current Performance**: See `model/metrics.json` for current model metrics. Wave and sample counts are in `wavesUsed` and `totalSamples` there.
+
+### Regional Attack Recognition
+
+The system identifies four distinct threat zones:
+- **Jerusalem/Shomron** (31.85°N, 35.20°E): Jerusalem, West Bank settlements
+- **Tel Aviv/Center** (32.08°N, 34.78°E): Tel Aviv, Gush Dan, Sharon
+- **North** (32.85°N, 35.30°E): Haifa, Galilee, Golan
+- **South** (31.40°N, 34.60°E): Gaza envelope, Lachish, Ashkelon
+
+**Mutual Exclusion**: Jerusalem and Tel Aviv are almost never targeted together. When a focused attack on one region is detected, the other receives an 85% probability reduction.
+
+### Regional Attack Separation (80km Threshold)
+
+When red alerts exist, the system checks whether they're from the same attack as the orange alerts by measuring the distance between their centers. If > 80km apart, they're treated as separate attacks and the orange center is used for predictions instead of the red center. This prevents a scenario where, e.g., northern reds would pull Tel Aviv orange predictions to near-zero. See `docs/REGIONAL_ATTACK_FIX.md` for details.
+
+### Red Alert Feedback
+
+Once cities turn red (actual rocket impacts), the model:
+1. **Fixes the center** on red cities (actual impact zone)
+2. **Reduces probabilities** for remaining orange cities (40-80% reduction based on conversion rate)
+3. **Prevents recalculation** using leftover orange cities
 
 ### Prediction Blending Strategy
 
@@ -145,7 +243,7 @@ final_probability = alpha × ML_prediction + (1 - alpha) × distance_curve_predi
 
 **Alpha Calculation** (dynamic confidence factor):
 - `alpha = 0.0` → 100% distance curve (no ML)
-- `alpha = 0.7` → 70% ML, 30% distance curve (current)
+- Intermediate values blend ML and distance curve; see `model/metrics.json` for the live `alpha`
 - `alpha = 0.85` → 85% ML, 15% distance curve (max)
 
 **Alpha Rules**:
@@ -154,19 +252,25 @@ final_probability = alpha × ML_prediction + (1 - alpha) × distance_curve_predi
   - Number of completed waves (more data = higher alpha)
   - Validation accuracy (better model = higher alpha)
 - Capped at 0.85 to maintain geographic baseline
-- Current: **0.70** (70% ML, 30% distance curve)
+- Current `alpha`: see `model/metrics.json`
 
-**Distance Curve Fallback**:
+**Distance Curve Fallback** (calibrated from 30,921 samples across 135 completed waves, March 17, 2026):
 ```
 Distance (km)  → Probability (%)
-0-15          → 100%
-17            → 90%
-20            → 70%
-25            → 39%
-30            → 20%
-40            → 10%
-50            → 4%
-60+           → 1-0%
+0             → 85%
+5             → 83%
+10            → 80%
+15            → 68%
+20            → 57%
+25            → 44%
+30            → 36%
+35            → 27%
+40            → 25%
+50            → 22%
+60            → 25%
+70            → 19%
+80            → 20%
+100           → 30% (long-range threat)
 ```
 
 ### Auto-Retraining System
@@ -207,6 +311,13 @@ All endpoints serve from `http://localhost:3000`
 **Purpose**: Recent alerts (rolling 50-min window)  
 **Response**: Array of alert objects
 
+#### `GET /api/recent-history`
+**Purpose**: Merged recent alerts from Oref history + local collected data (last 30 minutes)  
+**Parameters**:
+- `testWave`: Set to `1` to generate synthetic test wave data
+
+**Response**: Array of alert objects sorted by time (newest first)
+
 #### `GET /api/cities`
 **Purpose**: City metadata  
 **Source**: `pikud-haoref-api/cities.json`  
@@ -230,14 +341,11 @@ All endpoints serve from `http://localhost:3000`
 **Purpose**: City boundary polygons for map visualization  
 **Source**: `pikud-haoref-api/polygons.json`
 
-#### `GET /api/predict?cities=...&centerLat=...&centerLng=...&zoneSize=...`
-**Purpose**: Get ML predictions for orange alert cities  
-**Parameters**:
-- `cities`: Comma-separated city names
-- `centerLat`, `centerLng`: Estimated impact center coordinates
-- `zoneSize`: Number of cities in warning zone
+#### `POST /api/predict`
+**Purpose**: Get ML predictions for orange alert cities
+**Body**: JSON with `cities`, `centerLat`, `centerLng`, `zoneSize`, optional `redCities`, `redCenter`
 
-**Response**:
+**Response**: Includes `predictions` per city and a `model` object (`alpha`, `accuracy`, `wavesUsed`, `trainedAt`, etc.) sourced from `model/metrics.json`.
 ```json
 {
   "predictions": {
@@ -246,30 +354,14 @@ All endpoints serve from `http://localhost:3000`
       "ml": 78,          // ML model prediction
       "dist": 65,        // Distance-based prediction
       "source": "blended"
-    },
-    ...
-  },
-  "model": {
-    "alpha": 0.7,
-    "accuracy": 0.879,
-    "wavesUsed": 63,
-    "trainedAt": "2026-03-09T15:03:39.048Z"
+    }
   }
 }
 ```
 
 #### `GET /api/model-info`
 **Purpose**: Current ML model status  
-**Response**:
-```json
-{
-  "loaded": true,
-  "alpha": 0.7,
-  "accuracy": 0.879,
-  "wavesUsed": 63,
-  "trainedAt": "2026-03-09T15:03:39.048Z"
-}
-```
+**Response**: JSON with `hasModel` and the same metric fields as `model/metrics.json` (see that file for current values).
 
 #### `GET /api/full-history?mode=3&city=...`
 **Purpose**: Full historical data for specific city  
@@ -436,8 +528,7 @@ All endpoints serve from `http://localhost:3000`
 
 ### 1. Adjust Refresh Interval
 
-**File**: `index.html`  
-**Location**: Line ~401 (variables) and ~1227 (startCountdown function)
+**Files**: `public/js/alerts.js` and `public/js/state.js`
 
 ```javascript
 let refreshTimer = null, countdown = 5;  // Change 5 to desired seconds
@@ -479,7 +570,7 @@ function createModel() {
   const model = tf.sequential();
   
   // Change these values:
-  model.add(tf.layers.dense({ units: 32, activation: 'relu', inputShape: [12] }));  // Layer 1 units
+  model.add(tf.layers.dense({ units: 32, activation: 'relu', inputShape: [17] }));  // Layer 1 units
   model.add(tf.layers.dropout({ rate: 0.3 }));  // Dropout rate
   model.add(tf.layers.dense({ units: 16, activation: 'relu' }));  // Layer 2 units
   model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
@@ -504,44 +595,17 @@ const LEARNING_RATE = 0.001;  // Optimizer learning rate
 **File**: `train-model.js`  
 **Location**: Lines ~409-421 (inside main function)
 
-```javascript
-let alpha = 0;
-if (waveCount >= 10 && fullMetrics.accuracy >= 0.90) {
-  alpha = 0.85;  // Max alpha when high accuracy
-} else if (waveCount >= 10 && fullMetrics.accuracy >= 0.80) {
-  alpha = 0.70;  // Current typical alpha
-} else if (waveCount >= 3) {
-  alpha = Math.min(0.3 + (fullMetrics.accuracy - 0.5) * 0.8, 0.6);
-  alpha = Math.max(alpha, 0.2);
-} else {
-  alpha = Math.min(waveCount / 5, 0.3) * fullMetrics.accuracy;
-}
-alpha = Math.max(0, Math.min(0.85, alpha));  // Clamp [0, 0.85]
-```
+Alpha is calculated in `src/train-model.js` based on wave count and validation accuracy. The logic progressively trusts the ML model more as data accumulates and accuracy improves. See the training code for exact thresholds. Current `alpha`, wave count, and accuracy: see `model/metrics.json`.
 
 ### 6. Modify Distance-Based Probability Curve
 
-**File**: `server.js`  
-**Location**: Lines ~94-99
+**File**: `lib/config.js`
 
-```javascript
-const PROB_CURVE = [
-  { dist: 0, prob: 100 },   // 0km = 100%
-  { dist: 5, prob: 100 },
-  { dist: 15, prob: 100 },
-  { dist: 20, prob: 70 },   // 20km = 70%
-  { dist: 30, prob: 20 },   // 30km = 20%
-  { dist: 50, prob: 4 },
-  { dist: 80, prob: 0 },
-];
-```
-
-**Same in**: `index.html` (lines ~495-502)
+The distance curve is defined in `lib/config.js` as `PROB_CURVE`, calibrated from 30,921 actual samples. See the ML System section above for current values.
 
 ### 7. Change Polling Interval (Data Collection)
 
-**File**: `collector.js`  
-**Location**: Line ~26
+**File**: `lib/config.js` (`POLL_INTERVAL`) or `.env` (`POLL_INTERVAL=30000`)
 
 ```javascript
 const POLL_INTERVAL = 30000;  // Change to desired milliseconds (30000 = 30s)
@@ -549,8 +613,7 @@ const POLL_INTERVAL = 30000;  // Change to desired milliseconds (30000 = 30s)
 
 ### 8. Modify Wave Gap Duration
 
-**File**: `collector.js`  
-**Location**: Line ~27
+**File**: `lib/config.js` (`WAVE_GAP_MS`) or `.env` (`WAVE_GAP_MS=1200000`)
 
 ```javascript
 const WAVE_GAP_MS = 20 * 60 * 1000;  // 20 minutes in ms
@@ -562,38 +625,21 @@ Change `20` to desired minutes. Smaller gap = more waves, larger gap = fewer but
 
 **File**: `train-model.js`
 
-**Step 1**: Add feature name to `FEATURE_NAMES` (line ~19)
-```javascript
-const FEATURE_NAMES = [
-  'dist_to_center',
-  // ... existing features ...
-  'your_new_feature'  // Add here
-];
-```
+Features are defined in a single source of truth: `lib/ml/features.js`. To add a new feature:
 
-**Step 2**: Add feature calculation in `extractFeatures()` (around line ~140)
-```javascript
-samples.push({
-  features: [
-    dist,
-    Math.sin(bear),
-    // ... existing features ...
-    yourNewFeatureValue  // Add calculation here
-  ],
-  label: gotRed,
-  meta: { city: cityName, wave: wave.id, dist }
-});
-```
+**Step 1**: Add feature definition to `FEATURE_DEFINITIONS` in `lib/ml/features.js`
 
-**Step 3**: Update `createModel()` input shape if needed (line ~161)
-```javascript
-inputShape: [13]  // Change from 12 to match new feature count
-```
+**Step 2**: Add extraction logic in `extractFeatures()` in the same file
+
+**Step 3**: Update `FEATURE_NAMES` in `lib/config.js` to match
+
+**Step 4**: Run `npm run train` to retrain the model with the new feature
+
+The model input shape is derived automatically from the feature count. The validation system (`lib/ml/validate-model.js`) will catch any mismatches at server startup.
 
 ### 10. Change Panel Size/Position
 
-**File**: `index.html`  
-**Location**: Lines ~17-23
+**File**: `public/css/styles.css`
 
 ```javascript
 #panel {
@@ -626,13 +672,13 @@ npm list @tensorflow/tfjs-node
 **Option 1: Manual (separate terminals)**
 ```bash
 # Terminal 1: Start server
-node server.js
+npm start
 
 # Terminal 2: Start collector
-node collector.js
+npm run collect
 
 # Terminal 3: Manual training (optional)
-node train-model.js
+npm run train
 ```
 
 **Option 2: Using npm scripts**
@@ -650,7 +696,7 @@ Open browser: `http://localhost:3000`
 
 **Server Logs**: Shows API requests and model reload events
 ```
-[ML] Model loaded (alpha=0.70, waves=63, val_acc=87.9%)
+[ML] Model loaded (alpha, waves, val_acc from model/metrics.json)
 Live alert map running at http://localhost:3000
 ```
 
@@ -727,26 +773,26 @@ Alert collector started (oref + tzevaadom)
 - `warned >= 5` (minimum cities in warning zone)
 
 ### model/metrics.json
+Open this file on disk for current numbers. Typical keys:
 ```json
 {
-  "trainedAt": "2026-03-09T15:03:39.048Z",
-  "wavesUsed": 63,
-  "totalSamples": 4157,
-  "positiveRate": 0.457,
+  "trainedAt": "<ISO8601>",
+  "wavesUsed": "<integer>",
+  "totalSamples": "<integer>",
+  "positiveRate": "<number>",
   "validation": {
-    "accuracy": 0.879,
-    "precision": 0.836,
-    "recall": 0.882,
-    "f1": 0.858,
-    "tp": 305,
-    "fp": 60,
-    "tn": 426,
-    "fn": 41
+    "accuracy": "<number>",
+    "precision": "<number>",
+    "recall": "<number>",
+    "f1": "<number>"
   },
-  "full": { /* same metrics for full dataset */ },
-  "alpha": 0.7,
-  "bestValAcc": 0.883,
-  "bestEpoch": 76
+  "full": { },
+  "alpha": "<number>",
+  "bestValAcc": "<number>",
+  "bestEpoch": "<number>",
+  "featureNames": [ ],
+  "classWeights": { },
+  "hyperparams": { "epochs": 80, "batchSize": 64, "learningRate": 0.001 }
 }
 ```
 
@@ -873,18 +919,21 @@ ls -la node_modules/@tensorflow/tfjs-node
 
 ### Testing Approach
 
-**Current State**: No formal test suite (prototyping phase)
+**Unit Tests**: 34 Jest tests covering alert classification, geographic calculations, and wave detection.
 
-**Manual Testing**:
-1. Run during active alert periods
-2. Compare ML predictions to actual outcomes
-3. Monitor accuracy in `model/metrics.json`
-4. Spot-check predictions in browser console
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:calibration  # Model calibration validation
+npm run validate:model    # Feature/model compatibility check
+npm run check:features    # Print current feature set
+```
 
-**Recommended Tests** (for production):
-- Unit tests for feature extraction logic
-- Integration tests for data collection
-- End-to-end tests for prediction pipeline
+**Calibration Testing**: Tests model predictions on held-out waves, groups into 10% probability buckets, and validates actual conversion rates per bucket.
+
+**Recommended Additional Tests** (for production):
+- Integration tests for data collection pipeline
+- End-to-end tests for prediction API
 - UI tests for critical user flows
 
 ---
@@ -893,7 +942,7 @@ ls -la node_modules/@tensorflow/tfjs-node
 
 ### Making Changes
 
-1. **Test locally** with `node server.js` + `node collector.js`
+1. **Test locally** with `npm start` + `npm run collect`
 2. **Monitor collector logs** during active events
 3. **Check model metrics** after retraining
 4. **Validate UI** in browser at `localhost:3000`
@@ -913,6 +962,21 @@ git commit -m "feat: add X feature to improve Y"
 # Push and create PR
 git push origin feature/your-feature-name
 ```
+
+---
+
+## 📚 Documentation
+
+Detailed documentation in `docs/`:
+
+- **`MULTI_MISSILE.md`**: Multi-missile detection & visualization
+- **`FEATURE_SYSTEM.md`**: Feature mismatch prevention system
+- **`MODEL_CALIBRATION_REPORT.md`**: Model calibration analysis
+- **`CANARY_CITIES.md`**: Canary city discovery & fix
+- **`REGIONAL_ATTACK_FIX.md`**: Critical fix for simultaneous regional attacks (80km threshold)
+- **`ARCHITECTURE.md`**: System architecture
+- **`TECHNICAL.md`**: Technical deep-dive
+- **`archive/`**: Historical documentation & old reports
 
 ---
 
@@ -938,6 +1002,6 @@ For questions or issues, review:
 
 ---
 
-**Last Updated**: March 9, 2026  
-**Project Status**: Active Development  
-**Current Model**: v1.0, 87.9% validation accuracy, 63 waves
+**Last Updated**: March 24, 2026
+**Project Status**: Active Development
+**Current Model**: v1.2, 17 features; see `model/metrics.json` for validation accuracy, wave count, and sample counts

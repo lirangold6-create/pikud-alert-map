@@ -87,18 +87,31 @@ export async function refreshAlerts() {
         }
       }
 
-      // Expire stale oranges: if green events exist, orange alerts older than
-      // the latest green are from a finished attack — move them to green
+      // Expire stale oranges: only expire an orange alert if a geographically
+      // nearby green "event ended" alert is newer (same attack, not a distant one).
       if (groups.green.length > 0 && groups.orange.length > 0) {
-        const latestGreenTime = Math.max(...groups.green.map(c => 
-          c.time ? new Date(c.time.replace(' ', 'T')).getTime() : 0
-        ));
+        const GREEN_EXPIRE_RADIUS_KM = 60;
+        const greenWithCoords = groups.green.map(c => {
+          const coords = getCityCoords(c.name);
+          const t = c.time ? new Date(c.time.replace(' ', 'T')).getTime() : 0;
+          return { coords, time: t };
+        }).filter(g => g.coords);
+
         const stillActive = [];
         for (const c of groups.orange) {
-          const t = c.time ? new Date(c.time.replace(' ', 'T')).getTime() : Date.now();
-          if (t >= latestGreenTime) {
-            stillActive.push(c);
+          const orangeCoords = getCityCoords(c.name);
+          const orangeTime = c.time ? new Date(c.time.replace(' ', 'T')).getTime() : Date.now();
+          let expired = false;
+          if (orangeCoords) {
+            for (const g of greenWithCoords) {
+              const dist = haversineKm(orangeCoords[0], orangeCoords[1], g.coords[0], g.coords[1]);
+              if (dist <= GREEN_EXPIRE_RADIUS_KM && g.time > orangeTime) {
+                expired = true;
+                break;
+              }
+            }
           }
+          if (!expired) stillActive.push(c);
         }
         groups.orange = stillActive;
       }

@@ -163,7 +163,7 @@ function predictWithML(cityNames, centerLat, centerLng, zoneSize, centerOverride
         hour,
         cityRates: cityHistoricalRates,
         cityDelays,
-        warningDelayMinutes: 0, // At inference time, predicting on first orange
+        warningDelayMinutes: 0,
         multiMissileInfo,
         orangeCities,
         nameToCity
@@ -317,25 +317,29 @@ async function predict(cityNames, centerLat, centerLng, zoneSize, options = {}) 
   
   const multiMissileInfo = detectMultiMissile(citiesWithTiming || citiesForClustering, nameToCity);
 
-  const clusters = clusterCitiesByRegion(orangeCities, nameToCity);
+  // Use RED cities to determine the primary attack region (where missiles actually hit).
+  // Orange cities are the warning zone and skew toward high-density areas like Tel Aviv,
+  // even when the attack targets Jerusalem.
+  const redClusterCities = redCities && redCities.length > 0 ? redCities : orangeCities;
+  const clusters = clusterCitiesByRegion(redClusterCities, nameToCity);
   const attackPattern = detectAttackPattern(clusters, actualCenter.lat, actualCenter.lng);
   const { global: globalRedFeedback, perCluster: perClusterRedFeedback } = computeRedFeedback(
     multiMissileInfo, redCities, orangeCities, useRedCenter, timeElapsedMinutes
   );
 
-  // Compute zone median radius for distance normalization.
-  // In large zones, raw distance is misleading — 25km may be well inside the zone.
-  // Normalizing by zone radius makes the distance curve zone-size-aware.
-  const REF_ZONE_RADIUS = 25;
+  // Gentle zone-size normalization: in very large zones, distances are slightly
+  // compressed so the distance curve remains meaningful. Capped at 0.75 minimum
+  // to preserve real geographic separation (Tel Aviv at 54km should NOT look like 27km).
+  const REF_ZONE_RADIUS = 30;
   const orangeCoordsList = orangeCities.map(n => nameToCity[n]).filter(c => c && c.lat && c.lng);
   let zoneDistScale = 1;
-  if (orangeCoordsList.length > 30) {
+  if (orangeCoordsList.length > 50) {
     const orangeDists = orangeCoordsList
       .map(c => haversineKm(c.lat, c.lng, actualCenter.lat, actualCenter.lng))
       .sort((a, b) => a - b);
     const medianRadius = orangeDists[Math.floor(orangeDists.length * 0.5)];
     if (medianRadius > REF_ZONE_RADIUS) {
-      zoneDistScale = REF_ZONE_RADIUS / medianRadius;
+      zoneDistScale = Math.max(0.75, REF_ZONE_RADIUS / medianRadius);
     }
   }
 
@@ -432,21 +436,26 @@ async function predict(cityNames, centerLat, centerLng, zoneSize, options = {}) 
     let finalProb;
     if (histRate != null) {
       const adjustedHistPct = histRate * 100;
-      const dKm = cityDistKm[name] || 50;
-      const t = Math.min(1, dKm / 80);
-      const baseHistWeight = 0.35 + 0.25 * t;
 
-      // Adaptive disagreement: when the model is confident (high modelProb)
-      // AND history also suggests meaningful probability, the gap likely reflects
-      // a focused attack — trust the model more. Otherwise, anchor to history.
-      const gap = Math.abs(adjustedHistPct - modelProb);
-      let disagreementBonus;
-      if (modelProb >= 70 && adjustedHistPct >= 50) {
-        disagreementBonus = Math.min(0.10, (gap / 30) * 0.10);
+      // Asymmetric calibration: history serves as a reality check.
+      // - If model predicts HIGH but history says LOW: pull down toward history
+      //   (model is overconfident for this city, e.g. Tel Aviv in a small Jerusalem attack)
+      // - If model predicts LOW but history says HIGH: pull up moderately
+      //   (this city usually gets hit, model might be underweighting it)
+      // - If they agree: trust their consensus
+      const gap = adjustedHistPct - modelProb;
+      let histWeight;
+
+      if (gap < -15) {
+        // Model > History by 15+: model is overconfident, trust history more
+        histWeight = Math.min(0.70, 0.45 + Math.min(0.25, Math.abs(gap) / 50 * 0.25));
+      } else if (gap > 15) {
+        // History > Model by 15+: model might be right for this specific attack
+        histWeight = Math.min(0.50, 0.30 + Math.min(0.20, gap / 60 * 0.20));
       } else {
-        disagreementBonus = Math.min(0.30, (gap / 20) * 0.30);
+        // Agreement zone: light blend, trust model
+        histWeight = 0.30;
       }
-      const histWeight = Math.min(0.80, baseHistWeight + disagreementBonus);
       finalProb = Math.max(1, Math.min(99, Math.round(
         histWeight * adjustedHistPct + (1 - histWeight) * modelProb
       )));
@@ -848,19 +857,31 @@ async function checkActiveWaveOnStartup() {
     }
 
     const orangeCities = [], redCities = [];
-    let latestGreen = 0;
+    const greenCities = [];
     for (const [city, a] of Object.entries(recent)) {
       const title = a.title || '';
       if (title.includes('הסתיים') || title.includes('ניתן לצאת')) {
         const t = new Date(a.alertDate.replace(' ', 'T')).getTime();
-        if (t > latestGreen) latestGreen = t;
+        const cityData = nameToCity[city];
+        greenCities.push({ name: city, time: t, lat: cityData?.lat, lng: cityData?.lng });
       }
     }
+    const GREEN_EXPIRE_RADIUS_KM = 60;
     for (const [city, a] of Object.entries(recent)) {
       const title = a.title || '';
       const t = new Date(a.alertDate.replace(' ', 'T')).getTime();
-      if (title.includes('בדקות הקרובות') && (!latestGreen || t >= latestGreen)) {
-        orangeCities.push(city);
+      if (title.includes('בדקות הקרובות')) {
+        const cityData = nameToCity[city];
+        let expiredByGreen = false;
+        if (cityData?.lat && greenCities.length > 0) {
+          for (const g of greenCities) {
+            if (g.lat && g.time > t && haversineKm(cityData.lat, cityData.lng, g.lat, g.lng) <= GREEN_EXPIRE_RADIUS_KM) {
+              expiredByGreen = true;
+              break;
+            }
+          }
+        }
+        if (!expiredByGreen) orangeCities.push(city);
       } else if (title.includes('ירי רקטות') && !title.includes('הסתיים')) {
         redCities.push(city);
       }

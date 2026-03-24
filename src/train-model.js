@@ -20,6 +20,18 @@ const TRAINING_DATA_FILE = path.join(__dirname, '..', config.PATHS.TRAINING_DATA
 const MODEL_HISTORY_DIR = path.join(MODEL_DIR, 'history');
 const MAX_MODEL_HISTORY = config.MAX_MODEL_HISTORY;
 const MIN_WAVES = 1;
+
+// Recency weighting: recent waves matter more than old ones.
+// weight = 1 + RECENCY_BOOST * exp(-ageDays / RECENCY_HALFLIFE)
+// With defaults: a wave from today gets weight ~3.0, 7 days ago ~1.7, 14 days ~1.2, 30+ days ~1.0
+const RECENCY_BOOST = 2.0;
+const RECENCY_HALFLIFE = 7; // days
+
+function recencyWeight(waveTimeStr) {
+  const waveTime = new Date(waveTimeStr.replace(' ', 'T')).getTime();
+  const ageDays = (Date.now() - waveTime) / (24 * 3600 * 1000);
+  return 1 + RECENCY_BOOST * Math.exp(-ageDays / RECENCY_HALFLIFE);
+}
 const VALIDATION_SPLIT = config.VALIDATION_SPLIT;
 const EPOCHS = config.EPOCHS;
 const BATCH_SIZE = config.BATCH_SIZE;
@@ -45,17 +57,18 @@ function getCityCountdown(name) {
 function extractFeatures(waves) {
   const samples = [];
 
-  // Build historical red rate and delay data from all waves
-  const cityRedCounts = {};
-  const cityWarnCounts = {};
+  // Build historical red rate and delay data from all waves (recency-weighted)
+  const cityRedWeights = {};
+  const cityWarnWeights = {};
   const cityOrangeToRedDelays = {};
 
   for (const wave of waves) {
+    const w = recencyWeight(wave.startTime);
     for (const [city, data] of Object.entries(wave.cities)) {
       const warned = data.orange || data.green;
       if (warned) {
-        cityWarnCounts[city] = (cityWarnCounts[city] || 0) + 1;
-        if (data.red) cityRedCounts[city] = (cityRedCounts[city] || 0) + 1;
+        cityWarnWeights[city] = (cityWarnWeights[city] || 0) + w;
+        if (data.red) cityRedWeights[city] = (cityRedWeights[city] || 0) + w;
 
         if (data.times && data.times.orange && data.times.red) {
           const orangeTime = new Date(data.times.orange.replace(' ', 'T')).getTime();
@@ -76,8 +89,8 @@ function extractFeatures(waves) {
   }
 
   const cityHistoricalRates = {};
-  for (const city of Object.keys(cityWarnCounts)) {
-    cityHistoricalRates[city] = (cityRedCounts[city] || 0) / Math.max(cityWarnCounts[city] || 1, 1);
+  for (const city of Object.keys(cityWarnWeights)) {
+    cityHistoricalRates[city] = (cityRedWeights[city] || 0) / Math.max(cityWarnWeights[city] || 1, 1);
   }
 
   for (const wave of waves) {
@@ -150,36 +163,39 @@ function extractFeatures(waves) {
       });
 
       const dist = haversineKm(city.lat, city.lng, center.lat, center.lng);
+      const sampleWeight = recencyWeight(wave.startTime);
 
       samples.push({
         features,
         label: gotRed,
+        sampleWeight,
         meta: { city: cityName, wave: wave.id, dist, delay: warningDelayMinutes, avgDelayToRed: cityAvgDelay[cityName] || 0, multiMissile: multiMissileInfo && multiMissileInfo.detected ? 1 : 0 }
       });
     }
   }
 
-  // Build attack-size-conditional rates (small <100 cities vs large >=100)
+  // Build attack-size-conditional rates (recency-weighted)
   const SIZE_THRESHOLD = 100;
   const MIN_SAMPLES = 5;
   const condData = {};
   for (const wave of waves) {
+    const w = recencyWeight(wave.startTime);
     const waveSize = Object.values(wave.cities).filter(d => d.orange || d.green).length;
     const isSmall = waveSize < SIZE_THRESHOLD;
     for (const [city, data] of Object.entries(wave.cities)) {
       if (!(data.orange || data.green)) continue;
-      if (!condData[city]) condData[city] = { sW: 0, sR: 0, lW: 0, lR: 0 };
-      if (isSmall) { condData[city].sW++; if (data.red) condData[city].sR++; }
-      else { condData[city].lW++; if (data.red) condData[city].lR++; }
+      if (!condData[city]) condData[city] = { sW: 0, sR: 0, lW: 0, lR: 0, sN: 0, lN: 0 };
+      if (isSmall) { condData[city].sW += w; if (data.red) condData[city].sR += w; condData[city].sN++; }
+      else { condData[city].lW += w; if (data.red) condData[city].lR += w; condData[city].lN++; }
     }
   }
   const cityConditionalRates = {};
   for (const [city, d] of Object.entries(condData)) {
     cityConditionalRates[city] = {
       overall: cityHistoricalRates[city] || 0,
-      small: d.sW >= MIN_SAMPLES ? d.sR / d.sW : null,
-      large: d.lW >= MIN_SAMPLES ? d.lR / d.lW : null,
-      smallN: d.sW, largeN: d.lW
+      small: d.sN >= MIN_SAMPLES ? d.sR / d.sW : null,
+      large: d.lN >= MIN_SAMPLES ? d.lR / d.lW : null,
+      smallN: d.sN, largeN: d.lN
     };
   }
 
@@ -400,18 +416,34 @@ async function main() {
   console.log(`\nTraining: ${trainSamples.length} samples`);
   console.log(`Validation: ${valSamples.length} samples`);
 
-  // Create tensors
-  const xTrain = tf.tensor2d(trainSamples.map(s => normalize(s.features, norm)));
-  const yTrain = tf.tensor2d(trainSamples.map(s => [s.label]));
-  const xVal = tf.tensor2d(valSamples.map(s => normalize(s.features, norm)));
-  const yVal = tf.tensor2d(valSamples.map(s => [s.label]));
+  // Recency-weighted oversampling: duplicate recent samples proportionally.
+  // A sample with weight 2.5 appears once guaranteed + 50% chance of a second copy.
+  const avgRecency = trainSamples.reduce((s, x) => s + x.sampleWeight, 0) / trainSamples.length;
+  console.log(`Recency weights: avg=${avgRecency.toFixed(2)}, min=${Math.min(...trainSamples.map(s => s.sampleWeight)).toFixed(2)}, max=${Math.max(...trainSamples.map(s => s.sampleWeight)).toFixed(2)}`);
+  
+  const oversampledTrain = [];
+  for (const s of trainSamples) {
+    const w = s.sampleWeight;
+    const copies = Math.floor(w);
+    const fractional = w - copies;
+    for (let i = 0; i < copies; i++) oversampledTrain.push(s);
+    if (Math.random() < fractional) oversampledTrain.push(s);
+  }
+  const oversampled = oversampledTrain.sort(() => Math.random() - 0.5);
+  console.log(`Oversampled training: ${trainSamples.length} → ${oversampled.length} samples (+${((oversampled.length / trainSamples.length - 1) * 100).toFixed(0)}%)`);
 
   // Handle class imbalance with weights
-  const posCount = trainSamples.filter(s => s.label === 1).length;
-  const negCount = trainSamples.filter(s => s.label === 0).length;
+  const posCount = oversampled.filter(s => s.label === 1).length;
+  const negCount = oversampled.filter(s => s.label === 0).length;
   const posWeight = negCount / (posCount || 1);
   const classWeights = { 0: 1, 1: Math.min(posWeight, 5) };
   console.log(`Class weights: negative=1.0, positive=${classWeights[1].toFixed(2)}`);
+
+  // Create tensors (using oversampled training data)
+  const xTrain = tf.tensor2d(oversampled.map(s => normalize(s.features, norm)));
+  const yTrain = tf.tensor2d(oversampled.map(s => [s.label]));
+  const xVal = tf.tensor2d(valSamples.map(s => normalize(s.features, norm)));
+  const yVal = tf.tensor2d(valSamples.map(s => [s.label]));
 
   // Create and train model
   console.log(`\nTraining model (${EPOCHS} epochs)...\n`);

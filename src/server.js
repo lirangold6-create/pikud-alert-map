@@ -747,9 +747,20 @@ const server = http.createServer(async (req, res) => {
           });
           sendJson(res, result);
           
-          // Save favorites for startup notifications & trigger Telegram
+          // Save favorites for startup notifications & trigger Telegram.
+          // Only overwrite if the new list is at least as large as the stored
+          // one, so a stale browser tab with fewer favorites can't clobber the file.
           if (data.favorites && data.favorites.length > 0) {
-            try { fs.writeFileSync(path.join(__dirname, '..', 'data', 'favorites.json'), JSON.stringify(data.favorites)); } catch (e) {}
+            try {
+              const favFile = path.join(__dirname, '..', 'data', 'favorites.json');
+              let existing = [];
+              if (fs.existsSync(favFile)) {
+                try { existing = JSON.parse(fs.readFileSync(favFile, 'utf8')); } catch (_) {}
+              }
+              if (data.favorites.length >= existing.length) {
+                fs.writeFileSync(favFile, JSON.stringify(data.favorites));
+              }
+            } catch (e) {}
           }
           if (orangeCities.length >= 5 && data.favorites) {
             notifyOrangeWave(orangeCities, redCities, data.favorites, result.predictions, result.multiMissile, result.attackPattern).catch(() => {});
@@ -857,31 +868,19 @@ async function checkActiveWaveOnStartup() {
     }
 
     const orangeCities = [], redCities = [];
-    const greenCities = [];
+    const greenByCity = {};
     for (const [city, a] of Object.entries(recent)) {
       const title = a.title || '';
       if (title.includes('הסתיים') || title.includes('ניתן לצאת')) {
-        const t = new Date(a.alertDate.replace(' ', 'T')).getTime();
-        const cityData = nameToCity[city];
-        greenCities.push({ name: city, time: t, lat: cityData?.lat, lng: cityData?.lng });
+        greenByCity[city] = new Date(a.alertDate.replace(' ', 'T')).getTime();
       }
     }
-    const GREEN_EXPIRE_RADIUS_KM = 60;
     for (const [city, a] of Object.entries(recent)) {
       const title = a.title || '';
       const t = new Date(a.alertDate.replace(' ', 'T')).getTime();
       if (title.includes('בדקות הקרובות')) {
-        const cityData = nameToCity[city];
-        let expiredByGreen = false;
-        if (cityData?.lat && greenCities.length > 0) {
-          for (const g of greenCities) {
-            if (g.lat && g.time > t && haversineKm(cityData.lat, cityData.lng, g.lat, g.lng) <= GREEN_EXPIRE_RADIUS_KM) {
-              expiredByGreen = true;
-              break;
-            }
-          }
-        }
-        if (!expiredByGreen) orangeCities.push(city);
+        if (greenByCity[city] && greenByCity[city] > t) continue;
+        orangeCities.push(city);
       } else if (title.includes('ירי רקטות') && !title.includes('הסתיים')) {
         redCities.push(city);
       }

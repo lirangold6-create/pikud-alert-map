@@ -18,7 +18,7 @@ import { getPolygonCoords, getCityCoords, makeMissileIcon } from './map.js';
 function assignCitiesToCluster(cities, multiMissileInfo, clusterIdx) {
   return cities.filter(c => {
     const coords = getCityCoords(c.name);
-    if (!coords || !multiMissileInfo.clusters[0] || !multiMissileInfo.clusters[1]) return false;
+    if (!coords || !multiMissileInfo.clusters || multiMissileInfo.clusters.length < 2) return false;
     const dists = multiMissileInfo.clusters.map(cl =>
       haversineKm(coords[0], coords[1], cl.center.lat, cl.center.lng)
     );
@@ -87,31 +87,24 @@ export async function refreshAlerts() {
         }
       }
 
-      // Expire stale oranges: only expire an orange alert if a geographically
-      // nearby green "event ended" alert is newer (same attack, not a distant one).
+      // Expire stale oranges: only expire an orange city if THAT EXACT CITY
+      // has a newer green "event ended" alert. We cannot use geographic proximity
+      // because green alerts arrive in batches within the same attack — a nearby
+      // city may get "event ended" minutes before this city does.
       if (groups.green.length > 0 && groups.orange.length > 0) {
-        const GREEN_EXPIRE_RADIUS_KM = 60;
-        const greenWithCoords = groups.green.map(c => {
-          const coords = getCityCoords(c.name);
-          const t = c.time ? new Date(c.time.replace(' ', 'T')).getTime() : 0;
-          return { coords, time: t };
-        }).filter(g => g.coords);
+        const greenByCity = new Map();
+        for (const g of groups.green) {
+          const t = g.time ? new Date(g.time.replace(' ', 'T')).getTime() : 0;
+          const prev = greenByCity.get(g.name) || 0;
+          if (t > prev) greenByCity.set(g.name, t);
+        }
 
         const stillActive = [];
         for (const c of groups.orange) {
-          const orangeCoords = getCityCoords(c.name);
           const orangeTime = c.time ? new Date(c.time.replace(' ', 'T')).getTime() : Date.now();
-          let expired = false;
-          if (orangeCoords) {
-            for (const g of greenWithCoords) {
-              const dist = haversineKm(orangeCoords[0], orangeCoords[1], g.coords[0], g.coords[1]);
-              if (dist <= GREEN_EXPIRE_RADIUS_KM && g.time > orangeTime) {
-                expired = true;
-                break;
-              }
-            }
-          }
-          if (!expired) stillActive.push(c);
+          const greenTime = greenByCity.get(c.name);
+          if (greenTime && greenTime > orangeTime) continue;
+          stillActive.push(c);
         }
         groups.orange = stillActive;
       }

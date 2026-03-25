@@ -5,7 +5,8 @@
  * to verify probabilities are well-calibrated
  */
 
-const tf = require('@tensorflow/tfjs-node');
+let tf;
+try { tf = require('@tensorflow/tfjs-node'); } catch { tf = require('@tensorflow/tfjs'); }
 const fs = require('fs');
 const path = require('path');
 

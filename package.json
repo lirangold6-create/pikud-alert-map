@@ -16,10 +16,13 @@
     "check:features": "node -e \"const {getFeatureCount, getFeatureNames} = require('./lib/ml/features'); console.log('✅ Feature count:', getFeatureCount()); console.log('Features:', getFeatureNames().join(', '));\""
   },
   "dependencies": {
-    "@tensorflow/tfjs-node": "^4.22.0",
+    "@tensorflow/tfjs": "^4.10.0",
     "axios": "^1.6.0",
     "form-data": "^4.0.5",
-    "puppeteer-core": "^24.40.0"
+    "puppeteer-core": "^21.11.0"
+  },
+  "optionalDependencies": {
+    "@tensorflow/tfjs-node": "^4.10.0"
   },
   "devDependencies": {
     "jest": "^29.7.0"

@@ -28,7 +28,7 @@ const { validateModel } = require('../lib/ml/validate-model');
 const { notifyOrangeWave } = require('../lib/utils/telegram');
 
 let tf;
-try { tf = require('@tensorflow/tfjs-node'); } catch { tf = null; }
+try { tf = require('@tensorflow/tfjs-node'); } catch { try { tf = require('@tensorflow/tfjs'); } catch { tf = null; } }
 
 const PORT = config.PORT;
 const ALERTS_URL = config.OREF_ALERTS_URL;

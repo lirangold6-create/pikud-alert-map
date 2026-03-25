@@ -1,4 +1,5 @@
-const tf = require('@tensorflow/tfjs-node');
+let tf;
+try { tf = require('@tensorflow/tfjs-node'); } catch { tf = require('@tensorflow/tfjs'); console.warn('[Train] Native tfjs-node unavailable, using pure JS backend (slower)'); }
 const fs = require('fs');
 const path = require('path');
 

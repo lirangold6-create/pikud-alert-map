@@ -317,10 +317,18 @@ async function predict(cityNames, centerLat, centerLng, zoneSize, options = {}) 
   
   const multiMissileInfo = detectMultiMissile(citiesWithTiming || citiesForClustering, nameToCity);
 
-  // Use RED cities to determine the primary attack region (where missiles actually hit).
-  // Orange cities are the warning zone and skew toward high-density areas like Tel Aviv,
-  // even when the attack targets Jerusalem.
-  const redClusterCities = redCities && redCities.length > 0 ? redCities : orangeCities;
+  // Use RED cities to determine the primary attack region — but only when there
+  // are enough reds to be statistically meaningful. With very few reds (< 10),
+  // they may be stray hits from a different area (e.g. 2 northern border reds
+  // during a massive central-Israel wave) and would misclassify the entire attack.
+  // Require a substantial number of reds AND that they represent at least 5%
+  // of the zone before trusting them for regional classification. A handful of
+  // reds from a different area (e.g. northern border) would misclassify the
+  // entire attack and halve all predictions via the regional multiplier.
+  const MIN_REDS_FOR_REGION = 30;
+  const redRatio = orangeCities.length > 0 ? redCities.length / orangeCities.length : 0;
+  const useRedsForRegion = redCities.length >= MIN_REDS_FOR_REGION && redRatio >= 0.05;
+  const redClusterCities = useRedsForRegion ? redCities : orangeCities;
   const clusters = clusterCitiesByRegion(redClusterCities, nameToCity);
   const attackPattern = detectAttackPattern(clusters, actualCenter.lat, actualCenter.lng);
   const { global: globalRedFeedback, perCluster: perClusterRedFeedback } = computeRedFeedback(
